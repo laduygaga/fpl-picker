@@ -1,6 +1,7 @@
 package model
 
 import (
+	"maps"
 	"math"
 	"testing"
 
@@ -299,11 +300,7 @@ func TestBestXIFromSquad(t *testing.T) {
 
 func mergeMaps(a, b map[string]string) map[string]string {
 	m := make(map[string]string, len(a)+len(b))
-	for k, v := range a {
-		m[k] = v
-	}
-	for k, v := range b {
-		m[k] = v
-	}
+	maps.Copy(m, a)
+	maps.Copy(m, b)
 	return m
 }

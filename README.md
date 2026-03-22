@@ -8,12 +8,14 @@ Scores every available player using a weighted model conditioned on opponent qua
 
 | Weight | Factor | Description |
 |--------|--------|-------------|
-| 35% | Expected Points (EP) | FPL's own next-GW projection |
-| 25% | Opponent Quality | Position-specific — attackers score higher vs leaky defences, defenders score higher vs weak attacks |
-| 20% | Form | Recent points per game |
-| 10% | PPG | Season points per game |
-| 5% | xGI/90 | Expected goal involvement per 90 minutes |
-| 5% | ICT/90 | Influence + Creativity + Threat index per 90 |
+| 30% | Fixture Difficulty (FDR) | FPL's 1–5 difficulty rating, inverted (easier = higher score) |
+| 20% | Total Points | Season total points — proven performers |
+| 20% | Opponent Quality | Position-specific — attackers score higher vs leaky defences, defenders score higher vs weak attacks |
+| 15% | Form | Recent points per game |
+| 5% | Expected Points (EP) | FPL's own next-GW projection |
+| 5% | PPG | Season points per game |
+| 3% | xGI/90 | Expected goal involvement per 90 minutes |
+| 2% | ICT/90 | Influence + Creativity + Threat index per 90 |
 
 All metrics are **per-game / per-90** — no season totals.
 

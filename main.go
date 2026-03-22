@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"sort"
 	"strings"
 
@@ -28,7 +30,10 @@ func main() {
 
 	teamNames := resolveTeamNames(*myTeam, *saveTeam)
 
-	client := api.NewClient()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	client := api.NewClient(ctx)
 
 	if *fresh {
 		fmt.Println("Clearing cache...")
@@ -75,7 +80,7 @@ func main() {
 	})
 
 	budgetTenths := int(*budget * 10)
-	result := model.FindBestSquad(scored, budgetTenths)
+	result := model.FindBestSquad(scored, budgetTenths, scorer.FixturePairings())
 
 	display.PrintSquad(result, scorer.NextEventID())
 
@@ -156,7 +161,7 @@ func resolveTeamNames(flagVal string, save bool) []string {
 	}
 
 	var names []string
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" {
 			names = append(names, line)

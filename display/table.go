@@ -20,7 +20,7 @@ func PrintSquad(result model.SquadResult, nextGW int) {
 	fmt.Println()
 	fmt.Println(strings.Repeat("═", 120))
 	fmt.Printf("  GW%d — XI-FIRST | OPPONENT-CONDITIONED SCORING\n", nextGW)
-	fmt.Printf("  EP 35%% | Form 20%% | Opponent Quality 25%% | PPG 10%% | xGI/90 5%% | ICT/90 5%%\n")
+	fmt.Printf("  FDR 30%% | TotalPts 20%% | Opponent Quality 20%% | Form 15%% | EP 5%% | PPG 5%% | xGI/90 3%% | ICT/90 2%%\n")
 	fmt.Printf("  Budget: £%.1fM  |  XI Cost: £%.1fM  |  Squad Cost: £%.1fM  |  Formation: %s\n",
 		result.Budget, result.XICost, result.TotalCost, result.Formation)
 	fmt.Printf("  CAPTAIN: %s (%.3f)  |  VICE: %s (%.3f)\n",
@@ -117,7 +117,7 @@ func PrintMySquad(myPlayers []model.ScoredPlayer, optimal model.SquadResult) {
 	}
 
 	myXI, myFm, myScore := model.BestXIFromSquad(myPlayers)
-	sortByPosAndScore(myXI)
+	model.SortByPosAndScore(myXI)
 
 	fmt.Printf("\n%s\n  YOUR XI (%s) — Score: %.3f  |  OPTIMAL — Score: %.3f  |  GAP: %.3f\n%s\n",
 		strings.Repeat("═", 120), myFm, myScore, optimal.TotalScore, optimal.TotalScore-myScore, strings.Repeat("─", 120))
@@ -148,10 +148,7 @@ func PrintMySquad(myPlayers []model.ScoredPlayer, optimal model.SquadResult) {
 
 func printTransferTargets(weakest []model.ScoredPlayer, pool []model.ScoredPlayer) {
 	allScored := pool
-	limit := 3
-	if limit > len(weakest) {
-		limit = len(weakest)
-	}
+	limit := min(3, len(weakest))
 
 	for _, weak := range weakest[:limit] {
 		pos := weak.Player.ElementType
@@ -199,10 +196,7 @@ func PrintTopByPosition(players []model.ScoredPlayer, n int) {
 			continue
 		}
 
-		limit := n
-		if limit > len(pool) {
-			limit = len(pool)
-		}
+		limit := min(n, len(pool))
 
 		posLabel := posFullName(pos)
 		fmt.Printf("\n  %s\n", posLabel)
@@ -282,10 +276,7 @@ func PrintDifferentials(players []model.ScoredPlayer, maxOwnership float64, n in
 
 func headerLine(title string) string {
 	width := 120
-	pad := (width - len(title) - 4) / 2
-	if pad < 0 {
-		pad = 0
-	}
+	pad := max(0, (width-len(title)-4)/2)
 	return fmt.Sprintf("%s  %s  %s",
 		strings.Repeat("═", pad), title, strings.Repeat("═", width-pad-len(title)-4))
 }
@@ -303,14 +294,4 @@ func posFullName(pos int) string {
 	default:
 		return "UNKNOWN"
 	}
-}
-
-func sortByPosAndScore(players []model.ScoredPlayer) {
-	sort.Slice(players, func(i, j int) bool {
-		pi, pj := players[i].Player.ElementType, players[j].Player.ElementType
-		if pi != pj {
-			return pi < pj
-		}
-		return players[i].Score > players[j].Score
-	})
 }

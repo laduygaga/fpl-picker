@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,15 +21,17 @@ const (
 type Client struct {
 	http     *http.Client
 	cacheDir string
+	ctx      context.Context
 }
 
 // NewClient creates an FPL API client with sensible defaults.
-func NewClient() *Client {
+func NewClient(ctx context.Context) *Client {
 	return &Client{
 		http: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		cacheDir: cacheDir,
+		ctx:      ctx,
 	}
 }
 
@@ -55,7 +58,7 @@ func (c *Client) ClearCache() error {
 	return os.RemoveAll(c.cacheDir)
 }
 
-func (c *Client) fetchCached(endpoint string, target interface{}) error {
+func (c *Client) fetchCached(endpoint string, target any) error {
 	cacheFile := filepath.Join(c.cacheDir, endpoint+".json")
 
 	if data, err := c.readCache(cacheFile); err == nil {
@@ -76,7 +79,7 @@ func (c *Client) fetchCached(endpoint string, target interface{}) error {
 func (c *Client) fetchRaw(endpoint string) ([]byte, error) {
 	url := fmt.Sprintf("%s/%s/", baseURL, endpoint)
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(c.ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
