@@ -69,7 +69,7 @@ func PrintSquad(result model.SquadResult, nextGW int) {
 	fmt.Printf("  Starting XI Score: %.3f\n", result.TotalScore)
 	fmt.Println()
 
-	fmt.Println("  BENCH (cheapest eligible)")
+	fmt.Println("  BENCH (best within budget)")
 	fmt.Println("  " + strings.Repeat("─", 70))
 	wb := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	for i, sp := range result.Bench {

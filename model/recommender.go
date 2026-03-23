@@ -158,8 +158,12 @@ func solveDP(teamIDs []int, byTeam map[int][]ScoredPlayer, target posCounts, bud
 				continue
 			}
 
-			// Try picking players from this team.
-			pickedAny := false
+			// Skip transition: always allow not picking from this team.
+			for _, n := range nodes {
+				addToFrontier(next, state, dpNode{cost: n.cost, score: n.score})
+			}
+
+			// Pick transitions: try all team options.
 			for _, opt := range opts {
 				ns := state.add(opt.counts)
 				if !ns.fitsWithin(target) {
@@ -171,15 +175,6 @@ func solveDP(teamIDs []int, byTeam map[int][]ScoredPlayer, target posCounts, bud
 						continue
 					}
 					addToFrontier(next, ns, dpNode{cost: nc, score: n.score + opt.score})
-					pickedAny = true
-				}
-			}
-
-			// Skip transition: propagate state unchanged if we didn't pick any players.
-			// This allows DP to skip teams entirely.
-			if !pickedAny {
-				for _, n := range nodes {
-					addToFrontier(next, state, dpNode{cost: n.cost, score: n.score})
 				}
 			}
 		}
@@ -252,6 +247,10 @@ func solveDP(teamIDs []int, byTeam map[int][]ScoredPlayer, target posCounts, bud
 				}
 			}
 		}
+	}
+
+	if len(starters) != 11 {
+		return nil, 0, 0, false
 	}
 
 	return starters, bestScore, bestCost, true
@@ -436,19 +435,20 @@ func estimateBenchCost(byPos map[int][]ScoredPlayer, fm Formation) int {
 }
 
 // addToFrontier adds a node to the Pareto frontier for a given state.
-// Dominance: node A dominates B if A.cost <= B.cost && A.score >= B.score (and at least one strict).
+// Dominance: node A dominates B if A.cost < B.cost && A.score >= B.score, or A.cost <= B.cost && A.score > B.score.
+// Ties (same cost and score) are kept - they represent different paths needed for backtracking.
 func addToFrontier(dp map[posCounts][]dpNode, state posCounts, node dpNode) {
 	existing := dp[state]
 
 	for _, e := range existing {
-		if e.cost <= node.cost && e.score >= node.score {
+		if (e.cost < node.cost && e.score >= node.score) || (e.cost <= node.cost && e.score > node.score) {
 			return
 		}
 	}
 
 	kept := existing[:0]
 	for _, e := range existing {
-		if !(node.cost <= e.cost && node.score >= e.score) {
+		if !((node.cost < e.cost && node.score >= e.score) || (node.cost <= e.cost && node.score > e.score)) {
 			kept = append(kept, e)
 		}
 	}
@@ -605,28 +605,55 @@ func fillBench(byPos map[int][]ScoredPlayer, xiIDs map[int]bool, teamCount map[i
 	rem := remainingBudget
 
 	benchNeeds := map[int]int{}
+	totalNeed := 0
 	for pos, total := range squadSlots {
 		benchNeeds[pos] = total - xiPosCounts[pos]
+		totalNeed += benchNeeds[pos]
 	}
 
-	for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
-		need := benchNeeds[pos]
-		cnt := 0
-		for _, p := range sortedByCostAsc(byPos[pos]) {
-			if cnt >= need {
-				break
+	avgBudgetPerSlot := rem / float64(totalNeed)
+
+	if avgBudgetPerSlot > 50 {
+		for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
+			need := benchNeeds[pos]
+			cnt := 0
+			for _, p := range sortedByScoreDesc(byPos[pos]) {
+				if cnt >= need {
+					break
+				}
+				if xiIDs[p.Player.ID] || teamCount[p.Player.Team] >= 3 {
+					continue
+				}
+				if p.Player.NowCost > int(rem) {
+					continue
+				}
+				bench = append(bench, p)
+				xiIDs[p.Player.ID] = true
+				teamCount[p.Player.Team]++
+				rem -= float64(p.Player.NowCost)
+				cnt++
 			}
-			if xiIDs[p.Player.ID] || teamCount[p.Player.Team] >= 3 {
-				continue
+		}
+	} else {
+		for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
+			need := benchNeeds[pos]
+			cnt := 0
+			for _, p := range sortedByCostAsc(byPos[pos]) {
+				if cnt >= need {
+					break
+				}
+				if xiIDs[p.Player.ID] || teamCount[p.Player.Team] >= 3 {
+					continue
+				}
+				if p.Player.NowCost > int(rem) {
+					continue
+				}
+				bench = append(bench, p)
+				xiIDs[p.Player.ID] = true
+				teamCount[p.Player.Team]++
+				rem -= float64(p.Player.NowCost)
+				cnt++
 			}
-			if float64(p.Player.NowCost) > rem {
-				continue
-			}
-			bench = append(bench, p)
-			xiIDs[p.Player.ID] = true
-			teamCount[p.Player.Team]++
-			rem -= float64(p.Player.NowCost)
-			cnt++
 		}
 	}
 
@@ -638,6 +665,15 @@ func sortedByCostAsc(pool []ScoredPlayer) []ScoredPlayer {
 	copy(s, pool)
 	sort.Slice(s, func(i, j int) bool {
 		return s[i].Player.NowCost < s[j].Player.NowCost
+	})
+	return s
+}
+
+func sortedByScoreDesc(pool []ScoredPlayer) []ScoredPlayer {
+	s := make([]ScoredPlayer, len(pool))
+	copy(s, pool)
+	sort.Slice(s, func(i, j int) bool {
+		return s[i].Score > s[j].Score
 	})
 	return s
 }
