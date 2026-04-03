@@ -35,6 +35,18 @@ Each position weights opponent attack weakness and defence weakness differently:
 - Home advantage adds a +0.02 bonus
 - Double gameweeks are supported — opponent quality is averaged across fixtures
 
+### Scoring Formulas
+
+Choose a formula that matches your strategy:
+
+| Formula | FDR | Pts | Form | EP | PPG | xGI | ICT | Best For |
+|---------|-----|-----|------|-----|-----|-----|-----|----------|
+| `1` Balanced | 30% | 20% | 15% | 5% | 5% | 3% | 2% | General use |
+| `2` Attacker | 15% | 10% | 25% | 10% | 10% | 15% | 15% | High-scoring leagues |
+| `3` Defender | 35% | 25% | 10% | 5% | 10% | 5% | 10% | Clean sheet heavy |
+
+Use `-formula 2` or `-formula 3` to switch. The default is `1` (Balanced).
+
 ### XI-First Optimization
 
 The optimizer tries all 7 valid formations (3-4-3, 3-5-2, 4-3-3, 4-4-2, 4-5-1, 5-3-2, 5-4-1), maximizing the starting XI score while reserving budget for the cheapest possible bench. The bench composition is derived from formation — e.g., a 3-4-3 XI needs 2 extra DEF, 1 extra MID, and 0 extra FWD on the bench.
@@ -69,6 +81,7 @@ fpl-picker [flags]
 |------|---------|-------------|
 | `-budget` | `100.0` | Total squad budget in £M |
 | `-top` | `5` | Show top N players per position |
+| `-formula` | `1` | Scoring formula: 1=Balanced, 2=Attacker, 3=Defender |
 | `-diff` | `10` | Show top N differential picks (low ownership) |
 | `-diff-max` | `10.0` | Max ownership % for differentials |
 | `-fresh` | `false` | Clear cache and fetch fresh data |
@@ -83,6 +96,18 @@ Pick the best squad with a £102.1M budget:
 fpl-picker -budget 102.1
 ```
 
+Pick with Attacker formula (favors form, xG, ICT):
+
+```bash
+fpl-picker -budget 102.1 -formula 2
+```
+
+Pick with Defender formula (favors FDR, total points):
+
+```bash
+fpl-picker -budget 102.1 -formula 3
+```
+
 Compare your current squad against the optimal pick:
 
 ```
@@ -93,6 +118,18 @@ On subsequent runs, your team auto-loads from `.fpl-team.txt` — no need to pas
 
 ```
 fpl-picker -budget 102.1
+```
+
+Pick with Attacker formula (favors form, xG, ICT):
+
+```bash
+fpl-picker -budget 102.1 -formula 2
+```
+
+Pick with Defender formula (favors FDR, total points):
+
+```bash
+fpl-picker -budget 102.1 -formula 3
 ```
 
 Force fresh data (bypasses the 1-hour cache):

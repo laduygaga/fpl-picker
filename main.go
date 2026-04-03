@@ -26,6 +26,7 @@ func main() {
 	saveTeam := flag.Bool("save-team", false, "Save -my-team to .fpl-team.txt for future runs")
 	excluded := flag.String("excluded", "", "Comma-separated player web names to exclude from picks")
 	excludedTeams := flag.String("excluded-teams", "", "Comma-separated team short names to exclude (e.g. ARS,MCI)")
+	formula := flag.String("formula", "1", "Scoring formula: 1=Balanced, 2=Attacker, 3=Defender")
 	flag.Parse()
 
 	teamNames := resolveTeamNames(*myTeam, *saveTeam)
@@ -57,21 +58,24 @@ func main() {
 	fmt.Printf("Loaded %d players, %d teams, %d fixtures\n",
 		len(bootstrap.Elements), len(bootstrap.Teams), len(fixtures))
 
-	scorer := model.NewScorer(bootstrap.Teams, fixtures, bootstrap.Events, bootstrap.Elements)
+	scorer := model.NewScorer(bootstrap.Teams, fixtures, bootstrap.Events, bootstrap.Elements, *formula)
+	f := model.GetFormula(*formula)
+	fmt.Printf("Using formula: %s (FDR=%.0f%%, Pts=%.0f%%, Form=%.0f%%, XGI=%.0f%%, ICT=%.0f%%)\n",
+		f.Name, f.FDR*100, f.Pts*100, f.Form*100, f.XGI*100, f.ICT*100)
 	scored := scorer.ScoreAll(bootstrap.Elements)
 
 	fmt.Printf("Scoring %d eligible players for GW%d...\n", len(scored), scorer.NextEventID())
 
 	if *excluded != "" {
 		excludeSet := parseNames(*excluded)
-		scored = filterExcluded(scored, excludeSet)
+		scored = filterPlayers(scored, excludeSet, func(sp model.ScoredPlayer) string { return sp.Player.WebName }, strings.ToLower)
 		fmt.Printf("Excluded %d players: %s\n", len(excludeSet), strings.Join(excludeSet, ", "))
 	}
 
 	if *excludedTeams != "" {
 		teams := parseNames(*excludedTeams)
 		before := len(scored)
-		scored = filterExcludedTeams(scored, teams)
+		scored = filterPlayers(scored, teams, func(sp model.ScoredPlayer) string { return sp.TeamName }, strings.ToUpper)
 		fmt.Printf("Excluded %d players from teams: %s\n", before-len(scored), strings.Join(teams, ", "))
 	}
 
@@ -114,28 +118,14 @@ func parseNames(csv string) []string {
 	return out
 }
 
-func filterExcluded(scored []model.ScoredPlayer, names []string) []model.ScoredPlayer {
-	excl := make(map[string]bool, len(names))
-	for _, n := range names {
-		excl[strings.ToLower(n)] = true
+func filterPlayers(scored []model.ScoredPlayer, excluded []string, key func(model.ScoredPlayer) string, norm func(string) string) []model.ScoredPlayer {
+	excl := make(map[string]bool, len(excluded))
+	for _, e := range excluded {
+		excl[norm(e)] = true
 	}
 	out := make([]model.ScoredPlayer, 0, len(scored))
 	for _, sp := range scored {
-		if !excl[strings.ToLower(sp.Player.WebName)] {
-			out = append(out, sp)
-		}
-	}
-	return out
-}
-
-func filterExcludedTeams(scored []model.ScoredPlayer, teams []string) []model.ScoredPlayer {
-	excl := make(map[string]bool, len(teams))
-	for _, t := range teams {
-		excl[strings.ToUpper(strings.TrimSpace(t))] = true
-	}
-	out := make([]model.ScoredPlayer, 0, len(scored))
-	for _, sp := range scored {
-		if !excl[strings.ToUpper(sp.TeamName)] {
+		if !excl[norm(key(sp))] {
 			out = append(out, sp)
 		}
 	}

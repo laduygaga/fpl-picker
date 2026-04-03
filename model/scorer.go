@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -17,6 +18,78 @@ const (
 	PosMID = 3
 	PosFWD = 4
 )
+
+// Scoring weights for the base score (sum = 1.0).
+const (
+	wFDR      = 0.30
+	wTotalPts = 0.20
+	wForm     = 0.15
+	wEP       = 0.05
+	wPPG      = 0.05
+	wXGI90    = 0.03
+	wICT90    = 0.02
+	// Opponent quality and position-specific bonuses are 20% total,
+	// split per position inside scorePositionBonus.
+)
+
+const (
+	wOpponentQuality = 0.20 // shared across all positions
+	wHomeAdvantage   = 0.02
+	wCleanSheetBonus = 0.04
+)
+
+// Formula defines a scoring weight preset.
+type Formula struct {
+	Name  string
+	FDR   float64
+	Pts   float64
+	Form  float64
+	EP    float64
+	PPG   float64
+	XGI   float64
+	ICT   float64
+}
+
+// Preset formulas.
+var Formulas = map[string]Formula{
+	"1": {
+		Name:  "Balanced",
+		FDR:   0.30,
+		Pts:   0.20,
+		Form:  0.15,
+		EP:    0.05,
+		PPG:   0.05,
+		XGI:   0.03,
+		ICT:   0.02,
+	},
+	"2": {
+		Name:  "Attacker",
+		FDR:   0.15,
+		Pts:   0.10,
+		Form:  0.25,
+		EP:    0.10,
+		PPG:   0.10,
+		XGI:   0.15,
+		ICT:   0.15,
+	},
+	"3": {
+		Name:  "Defender",
+		FDR:   0.35,
+		Pts:   0.25,
+		Form:  0.10,
+		EP:    0.05,
+		PPG:   0.10,
+		XGI:   0.05,
+		ICT:   0.10,
+	},
+}
+
+func GetFormula(id string) Formula {
+	if f, ok := Formulas[id]; ok {
+		return f
+	}
+	return Formulas["1"] // default
+}
 
 // ScoredPlayer holds a player with their computed recommendation score.
 //
@@ -59,8 +132,6 @@ type gwContext struct {
 
 // Scorer computes recommendation scores for FPL players using
 // opponent-conditioned, per-game metrics optimized for a single gameweek.
-//
-// Scoring weights: FDR 30% | TotalPts 20% | Opponent Quality 20% | Form 15% | EP 5% | PPG 5% | xGI/90 3% | ICT/90 2%
 type Scorer struct {
 	teams       map[int]api.Team
 	fixtures    []api.Fixture
@@ -69,11 +140,13 @@ type Scorer struct {
 	teamAttackP90  map[int]float64 // team's xG per 90 (higher = stronger attack)
 	teamDefenceP90 map[int]float64 // team's xGA per 90 (higher = weaker defence)
 	gwCtx          map[int][]gwContext
+
+	formula Formula // scoring weights
 }
 
 // NewScorer creates a scorer from FPL data. It pre-computes team-level
 // attacking/defensive strength from player aggregate stats.
-func NewScorer(teams []api.Team, fixtures []api.Fixture, events []api.Event, players []api.Player) *Scorer {
+func NewScorer(teams []api.Team, fixtures []api.Fixture, events []api.Event, players []api.Player, formulaID string) *Scorer {
 	teamMap := make(map[int]api.Team, len(teams))
 	for _, t := range teams {
 		teamMap[t.ID] = t
@@ -91,6 +164,7 @@ func NewScorer(teams []api.Team, fixtures []api.Fixture, events []api.Event, pla
 		teams:       teamMap,
 		fixtures:    fixtures,
 		nextEventID: nextGW,
+		formula:     GetFormula(formulaID),
 	}
 	s.computeTeamStats(players)
 	s.buildGWContext()
@@ -192,14 +266,115 @@ func (s *Scorer) buildGWContext() {
 	}
 }
 
+type rawMetrics struct {
+	ppg, ep, form, xgi90, ict90, oppAtk, oppDef, totalPts, easyFDR float64
+}
+
+type scoreNormals struct {
+	ppg, ep, form, xgi90, ict90, oppAtk, oppDef, totalPts, easyFDR float64
+}
+
+func extractRawVectors(raws []rawMetrics) (ppg, ep, form, xgi90, ict90, oppAtk, oppDef, totalPts, easyFDR []float64) {
+	n := len(raws)
+	ppg = make([]float64, n)
+	ep = make([]float64, n)
+	form = make([]float64, n)
+	xgi90 = make([]float64, n)
+	ict90 = make([]float64, n)
+	oppAtk = make([]float64, n)
+	oppDef = make([]float64, n)
+	totalPts = make([]float64, n)
+	easyFDR = make([]float64, n)
+
+	for i, r := range raws {
+		ppg[i] = r.ppg
+		ep[i] = r.ep
+		form[i] = r.form
+		xgi90[i] = r.xgi90
+		ict90[i] = r.ict90
+		oppAtk[i] = r.oppAtk
+		oppDef[i] = r.oppDef
+		totalPts[i] = r.totalPts
+		easyFDR[i] = r.easyFDR
+	}
+	return
+}
+
+func buildNormalizers(ppg, ep, form, xgi90, ict90, oppAtk, oppDef, totalPts, easyFDR []float64) (
+	nPPG, nEP, nForm, nXGI, nICT, nOA, nOD, nTP, nFDR normalizer,
+) {
+	return newNormalizer(ppg), newNormalizer(ep), newNormalizer(form),
+		newNormalizer(xgi90), newNormalizer(ict90), newNormalizer(oppAtk),
+		newNormalizer(oppDef), newNormalizer(totalPts), newNormalizer(easyFDR)
+}
+
+func normalizeAll(r rawMetrics, nPPG, nEP, nForm, nXGI, nICT, nOA, nOD, nTP, nFDR normalizer) scoreNormals {
+	return scoreNormals{
+		ppg:      nPPG.normalize(r.ppg),
+		ep:       nEP.normalize(r.ep),
+		form:     nForm.normalize(r.form),
+		xgi90:    nXGI.normalize(r.xgi90),
+		ict90:    nICT.normalize(r.ict90),
+		oppAtk:   nOA.normalize(r.oppAtk),
+		oppDef:   nOD.normalize(r.oppDef),
+		totalPts: nTP.normalize(r.totalPts),
+		easyFDR:  nFDR.normalize(r.easyFDR),
+	}
+}
+
+func baseScore(f Formula, n scoreNormals) float64 {
+	return f.FDR*n.easyFDR +
+		f.Pts*n.totalPts +
+		f.Form*n.form +
+		f.EP*n.ep +
+		f.PPG*n.ppg +
+		f.XGI*n.xgi90 +
+		f.ICT*n.ict90
+}
+
+func scorePositionBonus(p api.Player, f Formula, n scoreNormals, gp float64) (bonus float64, oppScore float64) {
+	oppWeight := wOpponentQuality
+	cleanSheetBonus := wCleanSheetBonus
+
+	switch p.ElementType {
+	case PosGK:
+		opp := n.oppAtk
+		bonus = oppWeight * opp
+		if xgc := parseFloat(p.ExpectedGoalsConceded) / gp; xgc < 1.0 {
+			bonus += cleanSheetBonus * (1 - xgc)
+		}
+		return bonus, opp
+
+	case PosDEF:
+		opp := 0.70*n.oppAtk + 0.30*n.oppDef
+		bonus = oppWeight * opp
+		if xgc := parseFloat(p.ExpectedGoalsConceded) / gp; xgc < 1.0 {
+			bonus += cleanSheetBonus * (1 - xgc)
+		}
+		bonus += 0.03 * (parseFloat(p.ExpectedAssists) / gp)
+		return bonus, opp
+
+	case PosMID:
+		opp := 0.20*n.oppAtk + 0.80*n.oppDef
+		bonus = oppWeight * opp
+		bonus += 0.04 * (parseFloat(p.ExpectedGoals)/gp + parseFloat(p.ExpectedAssists)/gp)
+		return bonus, opp
+
+	case PosFWD:
+		opp := 0.10*n.oppAtk + 0.90*n.oppDef
+		bonus = oppWeight * opp
+		bonus += 0.07 * (parseFloat(p.ExpectedGoals) / gp)
+		return bonus, opp
+
+	default:
+		return 0, 0
+	}
+}
+
 // ScoreAll computes opponent-conditioned, per-game scores for all eligible players.
 func (s *Scorer) ScoreAll(players []api.Player) []ScoredPlayer {
-	type rawVals struct {
-		ppg, ep, form, xgi90, ict90, oppAtk, oppDef, totalPts, easyFDR float64
-	}
-
 	var scored []ScoredPlayer
-	var raws []rawVals
+	var raws []rawMetrics
 
 	for _, p := range players {
 		if !isEligible(p) {
@@ -209,9 +384,7 @@ func (s *Scorer) ScoreAll(players []api.Player) []ScoredPlayer {
 		gp := math.Max(1.0, float64(p.Minutes)/90.0)
 		ctxList, hasFix := s.gwCtx[p.Team]
 
-		oppAtk := 0.0
-		oppDef := 0.0
-		easyFDR := 0.0
+		var oppAtk, oppDef, easyFDR float64
 		oppDesc := "BLANK"
 		isHome := false
 
@@ -229,7 +402,7 @@ func (s *Scorer) ScoreAll(players []api.Player) []ScoredPlayer {
 			oppDesc = s.describeOpponents(ctxList)
 		}
 
-		r := rawVals{
+		raws = append(raws, rawMetrics{
 			ppg:      parseFloat(p.PointsPerGame),
 			ep:       parseFloat(p.EPNext),
 			form:     parseFloat(p.Form),
@@ -239,22 +412,21 @@ func (s *Scorer) ScoreAll(players []api.Player) []ScoredPlayer {
 			oppDef:   oppDef,
 			totalPts: float64(p.TotalPoints),
 			easyFDR:  easyFDR,
-		}
-		raws = append(raws, r)
+		})
 
 		scored = append(scored, ScoredPlayer{
 			Player:           p,
 			TeamName:         s.teams[p.Team].ShortName,
 			PositionName:     PosName(p.ElementType),
-			EPNextVal:        r.ep,
-			FormVal:          r.form,
-			PPGVal:           r.ppg,
-			XGIP90:           r.xgi90,
-			ICTP90:           r.ict90,
+			EPNextVal:        raws[len(raws)-1].ep,
+			FormVal:          raws[len(raws)-1].form,
+			PPGVal:           raws[len(raws)-1].ppg,
+			XGIP90:           raws[len(raws)-1].xgi90,
+			ICTP90:           raws[len(raws)-1].ict90,
 			HasFixture:       hasFix,
 			IsHome:           isHome,
 			OppDesc:          oppDesc,
-			FDRVal:           r.easyFDR,
+			FDRVal:           raws[len(raws)-1].easyFDR,
 			UpcomingFixtures: s.describeFixtures(p.Team),
 			OwnershipPct:     parseFloat(p.SelectedByPercent),
 		})
@@ -264,101 +436,30 @@ func (s *Scorer) ScoreAll(players []api.Player) []ScoredPlayer {
 		return scored
 	}
 
-	// Build normalizers for all metrics
-	n := len(raws)
-	ppgV := make([]float64, n)
-	epV := make([]float64, n)
-	formV := make([]float64, n)
-	xgiV := make([]float64, n)
-	ictV := make([]float64, n)
-	oaV := make([]float64, n)
-	odV := make([]float64, n)
-	tpV := make([]float64, n)
-	fdrV := make([]float64, n)
-
-	for i, r := range raws {
-		ppgV[i] = r.ppg
-		epV[i] = r.ep
-		formV[i] = r.form
-		xgiV[i] = r.xgi90
-		ictV[i] = r.ict90
-		oaV[i] = r.oppAtk
-		odV[i] = r.oppDef
-		tpV[i] = r.totalPts
-		fdrV[i] = r.easyFDR
-	}
-
-	nPPG := newNormalizer(ppgV)
-	nEP := newNormalizer(epV)
-	nForm := newNormalizer(formV)
-	nXGI := newNormalizer(xgiV)
-	nICT := newNormalizer(ictV)
-	nOA := newNormalizer(oaV)
-	nOD := newNormalizer(odV)
-	nTP := newNormalizer(tpV)
-	nFDR := newNormalizer(fdrV)
+	ppgV, epV, formV, xgiV, ictV, oaV, odV, tpV, fdrV := extractRawVectors(raws)
+	nPPG, nEP, nForm, nXGI, nICT, nOA, nOD, nTP, nFDR := buildNormalizers(ppgV, epV, formV, xgiV, ictV, oaV, odV, tpV, fdrV)
 
 	for i := range scored {
-		r := raws[i]
-		p := scored[i].Player
-
 		if !scored[i].HasFixture {
 			scored[i].Score = 0
 			continue
 		}
 
-		// FDR 30% | TotalPts 20% | Opp 20% | Form 15% | EP 5% | PPG 5% | xGI 3% | ICT 2%
-		score := 0.30*nFDR.normalize(r.easyFDR) +
-			0.20*nTP.normalize(r.totalPts) +
-			0.15*nForm.normalize(r.form) +
-			0.05*nEP.normalize(r.ep) +
-			0.05*nPPG.normalize(r.ppg) +
-			0.03*nXGI.normalize(r.xgi90) +
-			0.02*nICT.normalize(r.ict90)
+		n := normalizeAll(raws[i], nPPG, nEP, nForm, nXGI, nICT, nOA, nOD, nTP, nFDR)
+		score := baseScore(s.formula, n)
 
-		// Position-specific opponent conditioning: 20% of total score
-		gp := math.Max(1.0, float64(p.Minutes)/90.0)
+		gp := math.Max(1.0, float64(scored[i].Player.Minutes)/90.0)
+		bonus, oppScore := scorePositionBonus(scored[i].Player, s.formula, n, gp)
+		score += bonus
+		scored[i].OppScore = oppScore
 
-		switch p.ElementType {
-		case PosGK:
-			score += 0.20 * nOA.normalize(r.oppAtk)
-			xgcP90 := parseFloat(p.ExpectedGoalsConceded) / gp
-			if xgcP90 < 1.0 {
-				score += 0.04 * (1 - xgcP90)
-			}
-			scored[i].OppScore = nOA.normalize(r.oppAtk)
-
-		case PosDEF:
-			oppMix := 0.70*nOA.normalize(r.oppAtk) + 0.30*nOD.normalize(r.oppDef)
-			score += 0.20 * oppMix
-			xgcP90 := parseFloat(p.ExpectedGoalsConceded) / gp
-			if xgcP90 < 1.0 {
-				score += 0.04 * (1 - xgcP90)
-			}
-			score += 0.03 * (parseFloat(p.ExpectedAssists) / gp)
-			scored[i].OppScore = oppMix
-
-		case PosMID:
-			oppMix := 0.20*nOA.normalize(r.oppAtk) + 0.80*nOD.normalize(r.oppDef)
-			score += 0.20 * oppMix
-			score += 0.04 * (parseFloat(p.ExpectedGoals)/gp + parseFloat(p.ExpectedAssists)/gp)
-			scored[i].OppScore = oppMix
-
-		case PosFWD:
-			oppMix := 0.10*nOA.normalize(r.oppAtk) + 0.90*nOD.normalize(r.oppDef)
-			score += 0.20 * oppMix
-			score += 0.07 * (parseFloat(p.ExpectedGoals) / gp)
-			scored[i].OppScore = oppMix
-		}
-
-		// Home advantage bump
 		if scored[i].IsHome {
-			score += 0.02
+			score += wHomeAdvantage
 		}
 
 		scored[i].Score = score
 
-		costM := float64(p.NowCost) / 10.0
+		costM := float64(scored[i].Player.NowCost) / 10.0
 		if costM > 0 {
 			scored[i].ValueRating = score / costM
 		}
@@ -382,7 +483,6 @@ func FindPlayersByName(scored []ScoredPlayer, names []string) []ScoredPlayer {
 		}
 		s, ok := byName[nm]
 		if !ok {
-			// Fuzzy: check substring in both directions
 			for k, v := range byName {
 				if strings.Contains(k, nm) || strings.Contains(nm, k) {
 					s = v
@@ -406,7 +506,7 @@ func BestXIFromSquad(squad []ScoredPlayer) (starters []ScoredPlayer, formation s
 	}
 	for pos := range byPos {
 		pool := byPos[pos]
-		sortByScoreDesc(pool)
+		sort.Slice(pool, func(i, j int) bool { return pool[i].Score > pool[j].Score })
 	}
 
 	for _, fm := range ValidFormations {
@@ -439,7 +539,6 @@ func BestXIFromSquad(squad []ScoredPlayer) (starters []ScoredPlayer, formation s
 		}
 	}
 
-	// Sort by position then score
 	SortByPosAndScore(starters)
 	return
 }
@@ -557,26 +656,15 @@ func parseFloat(s string) float64 {
 	return v
 }
 
-func sortByScoreDesc(players []ScoredPlayer) {
-	for i := 1; i < len(players); i++ {
-		for j := i; j > 0 && players[j].Score > players[j-1].Score; j-- {
-			players[j], players[j-1] = players[j-1], players[j]
-		}
-	}
-}
-
 // SortByPosAndScore sorts players by position (ascending) then score (descending).
 func SortByPosAndScore(players []ScoredPlayer) {
-	for i := 1; i < len(players); i++ {
-		for j := i; j > 0; j-- {
-			pi, pj := players[j].Player.ElementType, players[j-1].Player.ElementType
-			if pi < pj || (pi == pj && players[j].Score > players[j-1].Score) {
-				players[j], players[j-1] = players[j-1], players[j]
-			} else {
-				break
-			}
+	sort.Slice(players, func(i, j int) bool {
+		pi, pj := players[i].Player.ElementType, players[j].Player.ElementType
+		if pi != pj {
+			return pi < pj
 		}
-	}
+		return players[i].Score > players[j].Score
+	})
 }
 
 type normalizer struct {

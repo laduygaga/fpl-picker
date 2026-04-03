@@ -196,64 +196,60 @@ func solveDP(teamIDs []int, byTeam map[int][]ScoredPlayer, target posCounts, bud
 		}
 	}
 
-	// Backtrack through saved stages to reconstruct the chosen players.
-	remainScore := bestScore
-	remainCost := bestCost
-	remainState := target
-
-	for ti := len(teamIDs) - 1; ti >= 0; ti-- {
-		opts := allOpts[ti]
-		prevStage := stages[ti]
-		found := false
-
-		for oi, opt := range opts {
-			prevState := remainState
-			prevState = subtractPosCounts(prevState, opt.counts)
-			if prevState == posCounts(math.MaxUint32) {
-				continue
-			}
-
-			prevNodes, ok := prevStage[prevState]
-			if !ok {
-				continue
-			}
-
-			wantCost := remainCost - opt.cost
-			wantScore := remainScore - opt.score
-
-			for _, pn := range prevNodes {
-				if pn.cost == wantCost && math.Abs(pn.score-wantScore) < 1e-9 {
-					starters = append(starters, allOpts[ti][oi].players...)
-					remainScore = wantScore
-					remainCost = wantCost
-					remainState = prevState
-					found = true
-					break
-				}
-			}
-			if found {
-				break
-			}
-		}
-
-		// Fallback: team was skipped (0 players, state/cost/score unchanged).
-		if !found {
-			if prevNodes, has := prevStage[remainState]; has {
-				for _, pn := range prevNodes {
-					if pn.cost == remainCost && math.Abs(pn.score-remainScore) < 1e-9 {
-						found = true
-						break
-					}
-				}
-			}
-		}
-	}
+	starters = reconstructStarters(teamIDs, allOpts, stages, target, bestScore, bestCost)
 
 	if len(starters) != 11 {
 		return nil, 0, 0, false
 	}
 
 	return starters, bestScore, bestCost, true
+}
+
+// reconstructStarters walks backward through DP stages to recover the chosen players.
+func reconstructStarters(teamIDs []int, allOpts [][]teamOption, stages []map[posCounts][]dpNode, target posCounts, bestScore float64, bestCost int) []ScoredPlayer {
+	var starters []ScoredPlayer
+	remainScore := bestScore
+	remainCost := bestCost
+	remainState := target
+
+	for ti := len(teamIDs) - 1; ti >= 0; ti-- {
+		prevStage := stages[ti]
+
+		// Try each team option (pick 1-3 players).
+		for oi, opt := range allOpts[ti] {
+			prevState := subtractPosCounts(remainState, opt.counts)
+			if prevState == posCounts(math.MaxUint32) {
+				continue
+			}
+
+			wantCost := remainCost - opt.cost
+			wantScore := remainScore - opt.score
+
+			if matchNode(prevStage[prevState], wantCost, wantScore) {
+				starters = append(starters, allOpts[ti][oi].players...)
+				remainScore = wantScore
+				remainCost = wantCost
+				remainState = prevState
+				goto nextTeam
+			}
+		}
+
+		// Fallback: team was skipped (0 players, state/cost/score unchanged).
+		matchNode(prevStage[remainState], remainCost, remainScore)
+
+	nextTeam:
+	}
+
+	return starters
+}
+
+func matchNode(nodes []dpNode, wantCost int, wantScore float64) bool {
+	for _, n := range nodes {
+		if n.cost == wantCost && math.Abs(n.score-wantScore) < 1e-9 {
+			return true
+		}
+	}
+	return false
 }
 
 // applyClashDiscounts discounts GK/DEF options from teams whose GW opponent
@@ -611,49 +607,34 @@ func fillBench(byPos map[int][]ScoredPlayer, xiIDs map[int]bool, teamCount map[i
 		totalNeed += benchNeeds[pos]
 	}
 
-	avgBudgetPerSlot := rem / float64(totalNeed)
+	// Pick bench: score-first if budget is generous, cost-first otherwise.
+	sortByScore := remainingBudget/float64(totalNeed) > 50
 
-	if avgBudgetPerSlot > 50 {
-		for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
-			need := benchNeeds[pos]
-			cnt := 0
-			for _, p := range sortedByScoreDesc(byPos[pos]) {
-				if cnt >= need {
-					break
-				}
-				if xiIDs[p.Player.ID] || teamCount[p.Player.Team] >= 3 {
-					continue
-				}
-				if p.Player.NowCost > int(rem) {
-					continue
-				}
-				bench = append(bench, p)
-				xiIDs[p.Player.ID] = true
-				teamCount[p.Player.Team]++
-				rem -= float64(p.Player.NowCost)
-				cnt++
-			}
+	for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
+		var pool []ScoredPlayer
+		if sortByScore {
+			pool = sortedByScoreDesc(byPos[pos])
+		} else {
+			pool = sortedByCostAsc(byPos[pos])
 		}
-	} else {
-		for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
-			need := benchNeeds[pos]
-			cnt := 0
-			for _, p := range sortedByCostAsc(byPos[pos]) {
-				if cnt >= need {
-					break
-				}
-				if xiIDs[p.Player.ID] || teamCount[p.Player.Team] >= 3 {
-					continue
-				}
-				if p.Player.NowCost > int(rem) {
-					continue
-				}
-				bench = append(bench, p)
-				xiIDs[p.Player.ID] = true
-				teamCount[p.Player.Team]++
-				rem -= float64(p.Player.NowCost)
-				cnt++
+
+		need := benchNeeds[pos]
+		cnt := 0
+		for _, p := range pool {
+			if cnt >= need {
+				break
 			}
+			if xiIDs[p.Player.ID] || teamCount[p.Player.Team] >= 3 {
+				continue
+			}
+			if p.Player.NowCost > int(rem) {
+				continue
+			}
+			bench = append(bench, p)
+			xiIDs[p.Player.ID] = true
+			teamCount[p.Player.Team]++
+			rem -= float64(p.Player.NowCost)
+			cnt++
 		}
 	}
 
@@ -694,11 +675,3 @@ func pickCaptains(starters []ScoredPlayer) (captain, viceCaptain ScoredPlayer) {
 	return
 }
 
-func isAlreadyPicked(picked []ScoredPlayer, playerID int) bool {
-	for _, p := range picked {
-		if p.Player.ID == playerID {
-			return true
-		}
-	}
-	return false
-}

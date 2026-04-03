@@ -209,23 +209,6 @@ func TestPickCaptainsEmpty(t *testing.T) {
 	}
 }
 
-func TestIsAlreadyPicked(t *testing.T) {
-	picked := []ScoredPlayer{
-		{Player: api.Player{ID: 1}},
-		{Player: api.Player{ID: 5}},
-	}
-
-	if !isAlreadyPicked(picked, 1) {
-		t.Error("should find player 1")
-	}
-	if !isAlreadyPicked(picked, 5) {
-		t.Error("should find player 5")
-	}
-	if isAlreadyPicked(picked, 99) {
-		t.Error("should not find player 99")
-	}
-}
-
 func TestBudgetUtilization(t *testing.T) {
 	var players []ScoredPlayer
 	id := 1
@@ -496,7 +479,7 @@ func TestIntegrationScorerToRecommender(t *testing.T) {
 		}
 	}
 
-	scorer := NewScorer(teams, fixtures, events, allPlayers)
+	scorer := NewScorer(teams, fixtures, events, allPlayers, "1")
 	if scorer.NextEventID() != 10 {
 		t.Fatalf("NextEventID() = %d, want 10", scorer.NextEventID())
 	}

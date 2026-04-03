@@ -139,7 +139,7 @@ func TestScorerNextEventID(t *testing.T) {
 		{ID: 30, IsNext: true},
 	}
 	teams := []api.Team{testTeam(1, "ARS")}
-	s := NewScorer(teams, nil, events, nil)
+	s := NewScorer(teams, nil, events, nil, "1")
 	if s.NextEventID() != 30 {
 		t.Errorf("NextEventID() = %d, want 30", s.NextEventID())
 	}
@@ -159,7 +159,7 @@ func TestScorerNoFixtureZeroScore(t *testing.T) {
 	})
 	allPlayers := append(players, gk)
 
-	s := NewScorer(teams, nil, events, allPlayers)
+	s := NewScorer(teams, nil, events, allPlayers, "1")
 	scored := s.ScoreAll(players)
 
 	if len(scored) != 1 {
@@ -190,7 +190,7 @@ func TestScorerHomeAdvantage(t *testing.T) {
 	gk2 := makePlayer(92, 2, PosGK, 40, 900, map[string]string{"name": "GK2", "xg": "0.5", "xgc": "10.0"})
 
 	allPlayers := []api.Player{homePlayer, awayPlayer, gk1, gk2}
-	s := NewScorer(teams, fix, events, allPlayers)
+	s := NewScorer(teams, fix, events, allPlayers, "1")
 	scored := s.ScoreAll([]api.Player{homePlayer, awayPlayer})
 
 	if len(scored) != 2 {
