@@ -33,17 +33,17 @@ Each position weights opponent attack weakness and defence weakness differently:
 - **Opp Attack Weakness** = `1 / team_xG_per90` — higher means the opponent scores fewer goals (good for GK/DEF)
 - **Opp Defence Weakness** = `team_xGA_per90` — higher means the opponent concedes more (good for MID/FWD)
 - Home advantage adds a +0.02 bonus
-- Double gameweeks are supported — opponent quality is averaged across fixtures
+- Double gameweeks get +0.05 bonus (players marked with `*` in output)
 
 ### Scoring Formulas
 
 Choose a formula that matches your strategy:
 
-| Formula | FDR | Pts | Form | EP | PPG | xGI | ICT | Best For |
-|---------|-----|-----|------|-----|-----|-----|-----|----------|
-| `1` Balanced | 30% | 20% | 15% | 5% | 5% | 3% | 2% | General use |
-| `2` Attacker | 15% | 10% | 25% | 10% | 10% | 15% | 15% | High-scoring leagues |
-| `3` Defender | 35% | 25% | 10% | 5% | 10% | 5% | 10% | Clean sheet heavy |
+| Formula | FDR | Pts | Form | EP | PPG | xGI | ICT | DGW | Best For |
+|---------|-----|-----|------|-----|-----|-----|-----|-----|----------|
+| `1` Balanced | 30% | 20% | 15% | 5% | 5% | 3% | 2% | +5% | General use |
+| `2` Attacker | 15% | 10% | 25% | 10% | 10% | 15% | 15% | +5% | High-scoring leagues |
+| `3` Defender | 35% | 25% | 10% | 5% | 10% | 5% | 10% | +5% | Clean sheet heavy |
 
 Use `-formula 2` or `-formula 3` to switch. The default is `1` (Balanced).
 
