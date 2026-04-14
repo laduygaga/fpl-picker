@@ -84,6 +84,8 @@ var Formulas = map[string]Formula{
 	},
 }
 
+const wDGWBonus = 0.05 // Bonus for players with double gameweek
+
 func GetFormula(id string) Formula {
 	if f, ok := Formulas[id]; ok {
 		return f
@@ -114,6 +116,7 @@ type ScoredPlayer struct {
 	OppDesc    string  // e.g. "ARS(H) [Strong Atk, Avg Def]"
 	HasFixture bool
 	IsHome     bool
+	IsDGW      bool
 	FDRVal     float64 // easyFDR: 6 - difficulty (higher = easier)
 
 	UpcomingFixtures string
@@ -141,7 +144,8 @@ type Scorer struct {
 	teamDefenceP90 map[int]float64 // team's xGA per 90 (higher = weaker defence)
 	gwCtx          map[int][]gwContext
 
-	formula Formula // scoring weights
+	formula Formula
+	dgwTeams map[int]bool
 }
 
 // NewScorer creates a scorer from FPL data. It pre-computes team-level
@@ -165,6 +169,7 @@ func NewScorer(teams []api.Team, fixtures []api.Fixture, events []api.Event, pla
 		fixtures:    fixtures,
 		nextEventID: nextGW,
 		formula:     GetFormula(formulaID),
+		dgwTeams:    make(map[int]bool),
 	}
 	s.computeTeamStats(players)
 	s.buildGWContext()
@@ -263,6 +268,13 @@ func (s *Scorer) buildGWContext() {
 			oppAttWeakness: 1.0 / math.Max(0.5, s.teamAttackP90[f.TeamH]),
 			easyFDR:        float64(6 - f.TeamADifficulty),
 		})
+	}
+
+	// Track DGW teams
+	for teamID, ctxs := range s.gwCtx {
+		if len(ctxs) > 1 {
+			s.dgwTeams[teamID] = true
+		}
 	}
 }
 
@@ -424,6 +436,7 @@ func (s *Scorer) ScoreAll(players []api.Player) []ScoredPlayer {
 			XGIP90:           raws[len(raws)-1].xgi90,
 			ICTP90:           raws[len(raws)-1].ict90,
 			HasFixture:       hasFix,
+			IsDGW:            s.dgwTeams[p.Team],
 			IsHome:           isHome,
 			OppDesc:          oppDesc,
 			FDRVal:           raws[len(raws)-1].easyFDR,
@@ -455,6 +468,11 @@ func (s *Scorer) ScoreAll(players []api.Player) []ScoredPlayer {
 
 		if scored[i].IsHome {
 			score += wHomeAdvantage
+		}
+
+		// DGW bonus
+		if s.dgwTeams[scored[i].Player.Team] {
+			score += wDGWBonus
 		}
 
 		scored[i].Score = score

@@ -48,6 +48,8 @@ func PrintSquad(result model.SquadResult, nextGW int) {
 			badge = "©"
 		} else if sp.Player.ID == result.ViceCaptain.Player.ID {
 			badge = "V"
+		} else if sp.IsDGW {
+			badge = "*"
 		}
 
 		oq := fmt.Sprintf("%.0f%%", sp.OppScore*100)
