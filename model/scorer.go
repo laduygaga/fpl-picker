@@ -84,7 +84,7 @@ var Formulas = map[string]Formula{
 	},
 }
 
-const wDGWBonus = 0.05 // Bonus for players with double gameweek
+const wDGWBonus = 0.20 // Bonus for players with double gameweek
 
 func GetFormula(id string) Formula {
 	if f, ok := Formulas[id]; ok {
