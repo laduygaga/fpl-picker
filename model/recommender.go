@@ -3,6 +3,7 @@ package model
 import (
 	"math"
 	"sort"
+	"sync"
 )
 
 // Formation defines a valid starting XI shape.
@@ -346,25 +347,33 @@ func FindBestSquad(players []ScoredPlayer, budgetTenths int, fixturePairings map
 	var bestResult SquadResult
 	bestObj := -math.MaxFloat64
 
+	type result struct {
+		fm     Formation
+		result SquadResult
+		obj    float64
+	}
+
+	results := make(chan result, len(ValidFormations))
+	var wg sync.WaitGroup
+
 	for _, fm := range ValidFormations {
-		targetStarters := newPosCounts(fm.GK, fm.DEF, fm.MID, fm.FWD, 0, 0, 0, 0)
+		wg.Add(1)
+		go func(fm Formation) {
+			defer wg.Done()
 
-		benchReserve := estimateBenchCost(byPos, fm)
+			targetStarters := newPosCounts(fm.GK, fm.DEF, fm.MID, fm.FWD, 0, 0, 0, 0)
+			benchReserve := estimateBenchCost(byPos, fm)
+			dpBudget := budgetTenths - benchReserve
+			if dpBudget <= 0 {
+				return
+			}
 
-		dpBudget := budgetTenths - benchReserve
-		if dpBudget <= 0 {
-			continue
-		}
+			xi, xiScore, xiCost, ok := solveDP(teamIDs, byTeam, targetStarters, dpBudget, fixturePairings)
+			if !ok {
+				return
+			}
 
-		xi, xiScore, xiCost, ok := solveDP(teamIDs, byTeam, targetStarters, dpBudget, fixturePairings)
-		if !ok {
-			continue
-		}
-
-		obj := xiScore
-
-		if obj > bestObj {
-			bestObj = obj
+			obj := xiScore
 
 			SortByPosAndScore(xi)
 			captain, viceCaptain := pickCaptains(xi)
@@ -386,23 +395,38 @@ func FindBestSquad(players []ScoredPlayer, budgetTenths int, fixturePairings map
 				totalCost += p.Player.NowCost
 			}
 
-			// Recompute raw XI score (xiScore may include clash discounts).
 			rawScore := 0.0
 			for _, p := range xi {
 				rawScore += p.Score
 			}
 
-			bestResult = SquadResult{
-				Formation:   fm.Name,
-				Starters:    xi,
-				Bench:       bench,
-				Captain:     captain,
-				ViceCaptain: viceCaptain,
-				TotalScore:  rawScore,
-				XICost:      float64(xiCost) / 10.0,
-				TotalCost:   float64(totalCost) / 10.0,
-				Budget:      float64(budgetTenths) / 10.0,
+			results <- result{
+				fm: fm,
+				result: SquadResult{
+					Formation:   fm.Name,
+					Starters:    xi,
+					Bench:       bench,
+					Captain:     captain,
+					ViceCaptain: viceCaptain,
+					TotalScore:  rawScore,
+					XICost:      float64(xiCost) / 10.0,
+					TotalCost:   float64(totalCost) / 10.0,
+					Budget:      float64(budgetTenths) / 10.0,
+				},
+				obj: obj,
 			}
+		}(fm)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	for r := range results {
+		if r.obj > bestObj {
+			bestObj = r.obj
+			bestResult = r.result
 		}
 	}
 
