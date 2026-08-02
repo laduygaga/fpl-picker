@@ -265,19 +265,29 @@ func applyClashDiscounts(teamIDs []int, allOpts [][]teamOption, byTeam map[int][
 		hasOppAtk bool
 		maxFDR    int
 	}
-	teamClash := map[int]clashInfo{}
 
+	// Precompute teamHasAtk: teamID has at least one MID/FWD in the pool?
+	// Looking this up per pairing turns the inner O(team_pool) scan into an O(1) hit.
+	teamHasAtk := make(map[int]bool, len(byTeam))
+	for teamID, players := range byTeam {
+		for _, p := range players {
+			if p.Player.ElementType == PosMID || p.Player.ElementType == PosFWD {
+				teamHasAtk[teamID] = true
+				break
+			}
+		}
+	}
+
+	teamClash := make(map[int]clashInfo, len(teamIDs))
 	for _, teamID := range teamIDs {
 		ci := clashInfo{}
 		for _, fp := range pairings[teamID] {
-			for _, p := range byTeam[fp.OpponentID] {
-				if p.Player.ElementType == PosMID || p.Player.ElementType == PosFWD {
-					ci.hasOppAtk = true
-					if fp.Difficulty > ci.maxFDR {
-						ci.maxFDR = fp.Difficulty
-					}
-					break
-				}
+			if !teamHasAtk[fp.OpponentID] {
+				continue
+			}
+			ci.hasOppAtk = true
+			if fp.Difficulty > ci.maxFDR {
+				ci.maxFDR = fp.Difficulty
 			}
 		}
 		if ci.hasOppAtk {
@@ -344,6 +354,24 @@ func FindBestSquad(players []ScoredPlayer, budgetTenths int, fixturePairings map
 		byPos[p.Player.ElementType] = append(byPos[p.Player.ElementType], p)
 	}
 
+	// Pre-sort each position's pool by cost asc and score desc ONCE; subsequent
+	// calls into estimateBenchCost / fillBench can then slice into the cached
+	// copies without re-sorting (or, before this change, allocating a fresh copy
+	// per call inside sortedByCostAsc / sortedByScoreDesc).
+	byPosCostAsc := map[int][]ScoredPlayer{}
+	byPosScoreDesc := map[int][]ScoredPlayer{}
+	for pos, ps := range byPos {
+		cs := make([]ScoredPlayer, len(ps))
+		copy(cs, ps)
+		sort.Slice(cs, func(i, j int) bool { return cs[i].Player.NowCost < cs[j].Player.NowCost })
+		byPosCostAsc[pos] = cs
+
+		sd := make([]ScoredPlayer, len(ps))
+		copy(sd, ps)
+		sort.Slice(sd, func(i, j int) bool { return sd[i].Score > sd[j].Score })
+		byPosScoreDesc[pos] = sd
+	}
+
 	var bestResult SquadResult
 	bestObj := -math.MaxFloat64
 
@@ -362,7 +390,7 @@ func FindBestSquad(players []ScoredPlayer, budgetTenths int, fixturePairings map
 			defer wg.Done()
 
 			targetStarters := newPosCounts(fm.GK, fm.DEF, fm.MID, fm.FWD, 0, 0, 0, 0)
-			benchReserve := estimateBenchCost(byPos, fm)
+			benchReserve := estimateBenchCost(byPosCostAsc, fm)
 			dpBudget := budgetTenths - benchReserve
 			if dpBudget <= 0 {
 				return
@@ -388,7 +416,7 @@ func FindBestSquad(players []ScoredPlayer, budgetTenths int, fixturePairings map
 			for _, p := range xi {
 				xiPosCounts[p.Player.ElementType]++
 			}
-			bench := fillBench(byPos, xiIDs, teamCount, xiPosCounts, float64(budgetTenths-xiCost))
+			bench := fillBench(byPosCostAsc, byPosScoreDesc, xiIDs, teamCount, xiPosCounts, float64(budgetTenths-xiCost))
 
 			totalCost := xiCost
 			for _, p := range bench {
@@ -434,8 +462,9 @@ func FindBestSquad(players []ScoredPlayer, budgetTenths int, fixturePairings map
 }
 
 // estimateBenchCost estimates the minimum cost to fill bench slots for a formation
-// by summing the cheapest available player per position needed.
-func estimateBenchCost(byPos map[int][]ScoredPlayer, fm Formation) int {
+// by summing the cheapest available player per position needed. byPosCostAsc
+// must be pre-sorted by cost ascending (cached once in FindBestSquad).
+func estimateBenchCost(byPosCostAsc map[int][]ScoredPlayer, fm Formation) int {
 	benchNeeds := map[int]int{
 		PosGK:  squadSlots[PosGK] - fm.GK,
 		PosDEF: squadSlots[PosDEF] - fm.DEF,
@@ -446,7 +475,7 @@ func estimateBenchCost(byPos map[int][]ScoredPlayer, fm Formation) int {
 	total := 0
 	for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
 		need := benchNeeds[pos]
-		sorted := sortedByCostAsc(byPos[pos])
+		sorted := byPosCostAsc[pos]
 		for i := 0; i < need && i < len(sorted); i++ {
 			total += sorted[i].Player.NowCost
 		}
@@ -455,8 +484,12 @@ func estimateBenchCost(byPos map[int][]ScoredPlayer, fm Formation) int {
 }
 
 // addToFrontier adds a node to the Pareto frontier for a given state.
-// Dominance: node A dominates B if A.cost < B.cost && A.score >= B.score, or A.cost <= B.cost && A.score > B.score.
-// Ties (same cost and score) are kept - they represent different paths needed for backtracking.
+// Dominance: node A dominates B if A.cost < B.cost && A.score >= B.score, or
+// A.cost <= B.cost && A.score > B.score. Ties (same cost and same score) are
+// KEPT — they represent different team-combination paths that can lead to
+// distinct backtracking solutions in reconstructStarters. The O(n) scan and
+// in-place mutation via existing[:0] are therefore intentional: pruning is
+// strict, ties pass through, and the backing array is reused for the next call.
 func addToFrontier(dp map[posCounts][]dpNode, state posCounts, node dpNode) {
 	existing := dp[state]
 
@@ -503,23 +536,24 @@ func generateTeamOptions(pool []ScoredPlayer, target posCounts) []teamOption {
 	var opts []teamOption
 
 	n := len(limited)
+	idx := make([]int, 3) // shared index buffer reused across all recursive calls
 	for size := 1; size <= 3 && size <= n; size++ {
-		enumerateStarterSubsets(limited, size, 0, nil, target, &opts)
+		enumerateStarterSubsets(limited, size, 0, idx, 0, target, &opts)
 	}
 
 	return pruneTeamOptions(opts)
 }
 
-func enumerateStarterSubsets(pool []ScoredPlayer, size, start int, current []int, target posCounts, opts *[]teamOption) {
-	if len(current) == size {
-		var players []ScoredPlayer
+func enumerateStarterSubsets(pool []ScoredPlayer, size, start int, idx []int, depth int, target posCounts, opts *[]teamOption) {
+	if depth == size {
+		players := make([]ScoredPlayer, size)
 		sGK, sDEF, sMID, sFWD := 0, 0, 0, 0
 		totalCost := 0
 		totalScore := 0.0
 
-		for _, idx := range current {
-			p := pool[idx]
-			players = append(players, p)
+		for d := 0; d < depth; d++ {
+			p := pool[idx[d]]
+			players[d] = p
 			totalCost += p.Player.NowCost
 			totalScore += p.Score
 
@@ -549,7 +583,8 @@ func enumerateStarterSubsets(pool []ScoredPlayer, size, start int, current []int
 		return
 	}
 	for i := start; i < len(pool); i++ {
-		enumerateStarterSubsets(pool, size, i+1, append(current, i), target, opts)
+		idx[depth] = i
+		enumerateStarterSubsets(pool, size, i+1, idx, depth+1, target, opts)
 	}
 }
 
@@ -580,47 +615,11 @@ func pruneTeamOptions(opts []teamOption) []teamOption {
 	return pruned
 }
 
-// clashPenalty computes the soft penalty for head-to-head conflicts in the XI.
-// Penalizes picking MID/FWD from team A and GK/DEF from team B when A plays B.
-func clashPenalty(xi []ScoredPlayer, pairings map[int][]FixturePairing) float64 {
-	if pairings == nil {
-		return 0
-	}
-
-	penalty := 0.0
-	for _, atk := range xi {
-		if atk.Player.ElementType != PosMID && atk.Player.ElementType != PosFWD {
-			continue
-		}
-		fps := pairings[atk.Player.Team]
-		if len(fps) == 0 {
-			continue
-		}
-
-		for _, def := range xi {
-			if def.Player.ID == atk.Player.ID {
-				continue
-			}
-			if def.Player.ElementType != PosGK && def.Player.ElementType != PosDEF {
-				continue
-			}
-
-			for _, fp := range fps {
-				if def.Player.Team == fp.OpponentID {
-					defWeight := 0.7
-					if def.Player.ElementType == PosGK {
-						defWeight = 1.0
-					}
-					penalty += 0.15 * defWeight * math.Min(atk.Score, def.Score)
-					break
-				}
-			}
-		}
-	}
-	return penalty
-}
-
-func fillBench(byPos map[int][]ScoredPlayer, xiIDs map[int]bool, teamCount map[int]int, xiPosCounts map[int]int, remainingBudget float64) []ScoredPlayer {
+// fillBench picks bench fillers for the squad. byPosCostAsc is indexed by
+// position and pre-sorted by cost ascending; byPosScoreDesc is pre-sorted by
+// score descending. Both are populated once in FindBestSquad so this call is
+// allocation-free (no per-call copy inside the sort helpers).
+func fillBench(byPosCostAsc, byPosScoreDesc map[int][]ScoredPlayer, xiIDs map[int]bool, teamCount map[int]int, xiPosCounts map[int]int, remainingBudget float64) []ScoredPlayer {
 	var bench []ScoredPlayer
 	rem := remainingBudget
 
@@ -637,9 +636,9 @@ func fillBench(byPos map[int][]ScoredPlayer, xiIDs map[int]bool, teamCount map[i
 	for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
 		var pool []ScoredPlayer
 		if sortByScore {
-			pool = sortedByScoreDesc(byPos[pos])
+			pool = byPosScoreDesc[pos]
 		} else {
-			pool = sortedByCostAsc(byPos[pos])
+			pool = byPosCostAsc[pos]
 		}
 
 		need := benchNeeds[pos]
@@ -666,23 +665,20 @@ func fillBench(byPos map[int][]ScoredPlayer, xiIDs map[int]bool, teamCount map[i
 }
 
 func sortedByCostAsc(pool []ScoredPlayer) []ScoredPlayer {
-	s := make([]ScoredPlayer, len(pool))
-	copy(s, pool)
-	sort.Slice(s, func(i, j int) bool {
-		return s[i].Player.NowCost < s[j].Player.NowCost
+	sort.Slice(pool, func(i, j int) bool {
+		return pool[i].Player.NowCost < pool[j].Player.NowCost
 	})
-	return s
+	return pool
 }
 
 func sortedByScoreDesc(pool []ScoredPlayer) []ScoredPlayer {
-	s := make([]ScoredPlayer, len(pool))
-	copy(s, pool)
-	sort.Slice(s, func(i, j int) bool {
-		return s[i].Score > s[j].Score
+	sort.Slice(pool, func(i, j int) bool {
+		return pool[i].Score > pool[j].Score
 	})
-	return s
+	return pool
 }
 
+// pickCaptains selects the captain and vice-captain from the starting XI.
 func pickCaptains(starters []ScoredPlayer) (captain, viceCaptain ScoredPlayer) {
 	if len(starters) == 0 {
 		return
@@ -692,10 +688,29 @@ func pickCaptains(starters []ScoredPlayer) (captain, viceCaptain ScoredPlayer) {
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Score > sorted[j].Score
 	})
-	captain = sorted[0]
-	if len(sorted) > 1 {
-		viceCaptain = sorted[1]
+
+	// Players with a confirmed 0% chance of playing will not earn the captain's
+	// double points. If filtering empties the candidate list, fall back to the
+	// original top-2 so the result is always populated.
+	var eligible []ScoredPlayer
+	for _, p := range sorted {
+		if p.Player.ChanceOfPlayingNextRound != nil && *p.Player.ChanceOfPlayingNextRound == 0 {
+			continue
+		}
+		eligible = append(eligible, p)
+	}
+
+	if len(eligible) == 0 {
+		captain = sorted[0]
+		if len(sorted) > 1 {
+			viceCaptain = sorted[1]
+		}
+		return
+	}
+
+	captain = eligible[0]
+	if len(eligible) > 1 {
+		viceCaptain = eligible[1]
 	}
 	return
 }
-
