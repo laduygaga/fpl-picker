@@ -204,3 +204,158 @@ func TestPrintDifferentialsSortsByScore(t *testing.T) {
 		t.Error("higher scoring player should appear before lower scoring player")
 	}
 }
+
+func makeSquadPlayer(id int, pos int, name string, score float64) model.ScoredPlayer {
+	return model.ScoredPlayer{
+		Player:       api.Player{ID: id, WebName: name, ElementType: pos, NowCost: 50},
+		Score:        score,
+		PositionName: posShort(pos),
+		TeamName:     "TST",
+		OppDesc:      "OPP(H)",
+		OppScore:     0.5,
+		EPNextVal:    5.0,
+		FormVal:      5.0,
+	}
+}
+
+func posShort(pos int) string {
+	switch pos {
+	case model.PosGK:
+		return "GK"
+	case model.PosDEF:
+		return "DEF"
+	case model.PosMID:
+		return "MID"
+	case model.PosFWD:
+		return "FWD"
+	}
+	return "?"
+}
+
+func makeValidStarterXI() []model.ScoredPlayer {
+	return []model.ScoredPlayer{
+		makeSquadPlayer(1, model.PosGK, "KeeperOne", 0.6),
+		makeSquadPlayer(2, model.PosDEF, "DefOne", 0.5),
+		makeSquadPlayer(3, model.PosDEF, "DefTwo", 0.55),
+		makeSquadPlayer(4, model.PosDEF, "DefThree", 0.45),
+		makeSquadPlayer(5, model.PosMID, "MidOne", 0.7),
+		makeSquadPlayer(6, model.PosMID, "MidTwo", 0.65),
+		makeSquadPlayer(7, model.PosMID, "MidThree", 0.6),
+		makeSquadPlayer(8, model.PosMID, "MidFour", 0.55),
+		makeSquadPlayer(9, model.PosFWD, "FwdOne", 0.8),
+		makeSquadPlayer(10, model.PosFWD, "FwdTwo", 0.75),
+		makeSquadPlayer(11, model.PosFWD, "FwdThree", 0.7),
+	}
+}
+
+func makeBench() []model.ScoredPlayer {
+	return []model.ScoredPlayer{
+		makeSquadPlayer(12, model.PosGK, "BenchGK", 0.3),
+		makeSquadPlayer(13, model.PosDEF, "BenchDEF", 0.3),
+		makeSquadPlayer(14, model.PosMID, "BenchMID", 0.3),
+		makeSquadPlayer(15, model.PosFWD, "BenchFWD", 0.3),
+	}
+}
+
+func TestPrintSquadEmptyResult(t *testing.T) {
+	output := captureStdout(t, func() {
+		PrintSquad(model.SquadResult{}, 30)
+	})
+
+	if !strings.Contains(output, "No valid squad") {
+		t.Errorf("expected empty result to print 'No valid squad' message, got: %q", output)
+	}
+}
+
+func TestPrintSquadHappyPath(t *testing.T) {
+	starters := makeValidStarterXI()
+	bench := makeBench()
+	result := model.SquadResult{
+		Formation:   "3-4-3",
+		Starters:    starters,
+		Bench:       bench,
+		Captain:     starters[8], // FwdOne (highest score)
+		ViceCaptain: starters[9], // FwdTwo
+		TotalScore:  7.0,
+		XICost:      55.0,
+		TotalCost:   75.0,
+		Budget:      100.0,
+	}
+
+	output := captureStdout(t, func() {
+		PrintSquad(result, 30)
+	})
+
+	if !strings.Contains(output, "Formation: 3-4-3") {
+		t.Error("output should contain the formation name")
+	}
+	if !strings.Contains(output, "CAPTAIN: FwdOne") {
+		t.Error("output should contain the captain's name")
+	}
+	if !strings.Contains(output, "VICE: FwdTwo") {
+		t.Error("output should contain the vice-captain's name")
+	}
+	if !strings.Contains(output, "Starting XI Score") {
+		t.Error("output should contain the XI score line")
+	}
+	if !strings.Contains(output, "BENCH") {
+		t.Error("output should contain the bench section")
+	}
+}
+
+func TestPrintMySquadEmpty(t *testing.T) {
+	output := captureStdout(t, func() {
+		PrintMySquad(nil, model.SquadResult{})
+	})
+
+	if output != "" {
+		t.Errorf("empty myPlayers should produce no output, got: %q", output)
+	}
+}
+
+func TestPrintTopByPositionEmpty(t *testing.T) {
+	output := captureStdout(t, func() {
+		PrintTopByPosition(nil, 5)
+	})
+
+	if strings.Contains(output, "nil pointer") {
+		t.Errorf("empty player list should not panic, got: %q", output)
+	}
+	if !strings.Contains(output, "TOP PICKS BY POSITION") {
+		t.Error("output should still print the header")
+	}
+}
+
+func TestPrintMySquadWithGap(t *testing.T) {
+	// 11 starters with scores summing to exactly 0.5 for a 3-4-3 formation:
+	// 1*0.10 + 3*0.05 + 4*0.04 + 3*0.03 = 0.10 + 0.15 + 0.16 + 0.09 = 0.50
+	myPlayers := []model.ScoredPlayer{
+		makeSquadPlayer(101, model.PosGK, "MyGK", 0.10),
+		makeSquadPlayer(102, model.PosDEF, "MyDef1", 0.05),
+		makeSquadPlayer(103, model.PosDEF, "MyDef2", 0.05),
+		makeSquadPlayer(104, model.PosDEF, "MyDef3", 0.05),
+		makeSquadPlayer(105, model.PosMID, "MyMid1", 0.04),
+		makeSquadPlayer(106, model.PosMID, "MyMid2", 0.04),
+		makeSquadPlayer(107, model.PosMID, "MyMid3", 0.04),
+		makeSquadPlayer(108, model.PosMID, "MyMid4", 0.04),
+		makeSquadPlayer(109, model.PosFWD, "MyFwd1", 0.03),
+		makeSquadPlayer(110, model.PosFWD, "MyFwd2", 0.03),
+		makeSquadPlayer(111, model.PosFWD, "MyFwd3", 0.03),
+	}
+
+	optimal := model.SquadResult{
+		Formation:  "3-4-3",
+		TotalScore: 0.7,
+	}
+
+	output := captureStdout(t, func() {
+		PrintMySquad(myPlayers, optimal)
+	})
+
+	if !strings.Contains(output, "GAP: 0.200") {
+		t.Errorf("output should contain 'GAP: 0.200' (optimal=0.7, myXI=0.5), got:\n%s", output)
+	}
+	if !strings.Contains(output, "YOUR XI") {
+		t.Error("output should contain 'YOUR XI' header")
+	}
+}
