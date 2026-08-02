@@ -40,53 +40,67 @@ const (
 
 // Formula defines a scoring weight preset.
 type Formula struct {
-	Name  string
-	FDR   float64
-	Pts   float64
-	Form  float64
-	EP    float64
-	PPG   float64
-	XGI   float64
-	ICT   float64
+	Name string
+	FDR  float64
+	Pts  float64
+	Form float64
+	EP   float64
+	PPG  float64
+	XGI  float64
+	ICT  float64
 }
 
 // Preset formulas.
 var Formulas = map[string]Formula{
 	"1": {
-		Name:  "Balanced",
-		FDR:   0.30,
-		Pts:   0.20,
-		Form:  0.15,
-		EP:    0.05,
-		PPG:   0.05,
-		XGI:   0.03,
-		ICT:   0.02,
+		Name: "Balanced",
+		FDR:  0.30,
+		Pts:  0.20,
+		Form: 0.15,
+		EP:   0.05,
+		PPG:  0.05,
+		XGI:  0.03,
+		ICT:  0.02,
 	},
 	"2": {
-		Name:  "Attacker",
-		FDR:   0.15,
-		Pts:   0.10,
-		Form:  0.25,
-		EP:    0.10,
-		PPG:   0.10,
-		XGI:   0.15,
-		ICT:   0.15,
+		Name: "Attacker",
+		FDR:  0.15,
+		Pts:  0.10,
+		Form: 0.25,
+		EP:   0.10,
+		PPG:  0.10,
+		XGI:  0.15,
+		ICT:  0.15,
 	},
 	"3": {
-		Name:  "Defender",
-		FDR:   0.35,
-		Pts:   0.25,
-		Form:  0.10,
-		EP:    0.05,
-		PPG:   0.10,
-		XGI:   0.05,
-		ICT:   0.10,
+		Name: "Defender",
+		FDR:  0.35,
+		Pts:  0.25,
+		Form: 0.10,
+		EP:   0.05,
+		PPG:  0.10,
+		XGI:  0.05,
+		ICT:  0.10,
 	},
+}
+
+// FormulaNames maps friendly aliases (lowercase) to canonical numeric IDs.
+var FormulaNames = map[string]string{
+	"balanced": "1",
+	"attacker": "2",
+	"defender": "3",
 }
 
 const wDGWBonus = 0.20 // Bonus for players with double gameweek
 
+// GetFormula resolves a formula by numeric ID or friendly alias.
+// Lookup chain: trim+lowercase the input, look it up in FormulaNames to get a
+// numeric ID, then look up that ID in Formulas. Unknown values fall back to
+// Formulas["1"] (Balanced), preserving the historical default.
 func GetFormula(id string) Formula {
+	if mapped, ok := FormulaNames[strings.ToLower(strings.TrimSpace(id))]; ok {
+		id = mapped
+	}
 	if f, ok := Formulas[id]; ok {
 		return f
 	}
@@ -144,7 +158,7 @@ type Scorer struct {
 	teamDefenceP90 map[int]float64 // team's xGA per 90 (higher = weaker defence)
 	gwCtx          map[int][]gwContext
 
-	formula Formula
+	formula  Formula
 	dgwTeams map[int]bool
 }
 
