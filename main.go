@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
+	"sync"
 
 	"fpl-picker/api"
 	"fpl-picker/display"
@@ -26,7 +27,7 @@ func main() {
 	saveTeam := flag.Bool("save-team", false, "Save -my-team to .fpl-team.txt for future runs")
 	excluded := flag.String("excluded", "", "Comma-separated player web names to exclude from picks")
 	excludedTeams := flag.String("excluded-teams", "", "Comma-separated team short names to exclude (e.g. ARS,MCI)")
-	formula := flag.String("formula", "1", "Scoring formula: 1=Balanced, 2=Attacker, 3=Defender")
+	formula := flag.String("formula", "1", "Scoring formula: 1/balanced, 2/attacker, 3/defender")
 	flag.Parse()
 
 	teamNames := resolveTeamNames(*myTeam, *saveTeam)
@@ -43,13 +44,7 @@ func main() {
 
 	fmt.Println("Fetching FPL data...")
 
-	bootstrap, err := client.FetchBootstrap()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-
-	fixtures, err := client.FetchFixtures()
+	bootstrap, fixtures, err := fetchData(client)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -84,7 +79,9 @@ func main() {
 	})
 
 	budgetTenths := int(*budget * 10)
+	fmt.Fprintln(os.Stderr, "Optimizing squad across 7 formations...")
 	result := model.FindBestSquad(scored, budgetTenths, scorer.FixturePairings())
+	fmt.Fprintln(os.Stderr, "Squad optimization complete.")
 
 	display.PrintSquad(result, scorer.NextEventID())
 
@@ -161,4 +158,44 @@ func resolveTeamNames(flagVal string, save bool) []string {
 		fmt.Printf("Loaded %d players from %s\n", len(names), teamFile)
 	}
 	return names
+}
+
+// fetchData loads bootstrap-static and fixtures concurrently.
+// errCh is buffered (cap 2) so a fast-failing goroutine never blocks on send
+// while the other fetch is still in flight.
+func fetchData(client *api.Client) (*api.BootstrapResponse, []api.Fixture, error) {
+	var (
+		bootstrap *api.BootstrapResponse
+		fixtures  []api.Fixture
+		wg        sync.WaitGroup
+		errs      = make(chan error, 2)
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		b, err := client.FetchBootstrap()
+		if err != nil {
+			errs <- err
+			return
+		}
+		bootstrap = b
+	}()
+	go func() {
+		defer wg.Done()
+		f, err := client.FetchFixtures()
+		if err != nil {
+			errs <- err
+			return
+		}
+		fixtures = f
+	}()
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	return bootstrap, fixtures, nil
 }
