@@ -81,7 +81,7 @@ fpl-picker [flags]
 |------|---------|-------------|
 | `-budget` | `100.0` | Total squad budget in £M |
 | `-top` | `5` | Show top N players per position |
-| `-formula` | `1` | Scoring formula: 1=Balanced, 2=Attacker, 3=Defender |
+| `-formula` | `1` | Scoring formula: `1`/`balanced`, `2`/`attacker`, `3`/`defender` (case-insensitive aliases accepted) |
 | `-diff` | `10` | Show top N differential picks (low ownership) |
 | `-diff-max` | `10.0` | Max ownership % for differentials |
 | `-fresh` | `false` | Clear cache and fetch fresh data |
@@ -178,7 +178,36 @@ All data comes from the official FPL API — no auth required:
 - `https://fantasy.premierleague.com/api/bootstrap-static/` — players, teams, events
 - `https://fantasy.premierleague.com/api/fixtures/` — all matches
 
-Responses are cached locally in `.fpl-cache/` for 1 hour. Use `-fresh` to bypass.
+## Caching
+
+Responses are cached locally in `.fpl-cache/`. The cache uses three layered optimizations:
+
+- **gzip transport** — every request advertises `Accept-Encoding: gzip`. FPL serves ~1.5 MB of JSON as ~250 KB, so the first fetch is ~6× smaller on the wire.
+- **ETag conditional requests** — the server's `ETag` header is persisted to `<endpoint>.etag`. On the next fetch we send `If-None-Match`; a `304 Not Modified` reply reuses the cached body, so only the ETag round-trip pays the network.
+- **Split TTLs** — bootstrap-static contains both static data (teams, events, element_types) that changes once per season and dynamic data (elements: prices, ownership, status) that changes weekly. Per-field `fetched_at` timestamps are persisted in `<endpoint>.meta.json`:
+  - `teams`, `events`, `element_types` → 24h TTL
+  - `elements` → 1h TTL
+  - `fixtures` → 1h TTL
+
+  FPL returns the whole bootstrap-static response in one shot, so we can't selectively refetch — if ANY field is stale, we refetch the entire response and reset all timestamps. Pre-existing caches that lack a `.meta.json` fall back to the cache file's modification time, so old caches keep working without migration.
+
+Use `-fresh` to bypass the cache entirely.
+
+## Linting
+
+The repo ships a minimal `.golangci.yml` enabling `gofumpt`, `govet`, `errcheck`, `ineffassign`, `staticcheck`, and `unused`.
+
+Install:
+
+```
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+```
+
+Run:
+
+```
+golangci-lint run
+```
 
 ## Project Structure
 
