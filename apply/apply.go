@@ -70,21 +70,10 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 		SquadValue: current.Transfers.Value,
 	}
 
-	lineup := PlanLineup(optimal)
-	if !opts.SkipLineup {
-		update := api.LineupUpdate{Picks: lineup.Picks}
-		if api.LineupHasChanged(current, update) {
-			res.LineupChanged = true
-			if opts.Apply {
-				if opts.Chip != "" {
-					update.Chip = api.ChipPtr(opts.Chip)
-				}
-				if err := client.UpdateLineup(entryID, update); err != nil {
-					return res, fmt.Errorf("apply: lineup update failed: %w", err)
-				}
-			}
-		}
-	}
+	// Transfers must commit BEFORE the lineup update — the lineup update
+	// rewrites every player's slot/captain/VC, and FPL rejects picks that
+	// reference players who aren't on the team yet. So we plan transfers,
+	// commit them, then plan+post lineup against the post-transfer world.
 
 	var suggestions []TransferSuggestion
 	if !opts.SkipTransfers {
@@ -112,9 +101,28 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 		}
 	}
 
+	if !opts.SkipLineup {
+		// Plan lineup from the optimal squad. After transfers above, the
+		// players in optimal.Starters/Bench are now on the user's team, so
+		// posting lineup picks that reference them succeeds.
+		lineup := PlanLineup(optimal)
+		update := api.LineupUpdate{Picks: lineup.Picks}
+		if api.LineupHasChanged(current, update) {
+			res.LineupChanged = true
+			if opts.Apply {
+				if opts.Chip != "" {
+					update.Chip = api.ChipPtr(opts.Chip)
+				}
+				if err := client.UpdateLineup(entryID, update); err != nil {
+					return res, fmt.Errorf("apply: lineup update failed: %w", err)
+				}
+			}
+		}
+	}
+
 	if !opts.Apply {
 		SortSuggestions(suggestions)
-		_, _ = fmt.Fprintln(os.Stderr, RenderDiff(current, lineup, suggestions, res.PointsHits))
+		_, _ = fmt.Fprintln(os.Stderr, RenderDiff(current, PlanLineup(optimal), suggestions, res.PointsHits))
 	}
 
 	return res, nil
