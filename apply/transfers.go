@@ -29,17 +29,17 @@ type TransferSuggestion struct {
 //
 //   - Position match: each OUT must have the same element_type as its IN.
 //     FPL's transfer endpoint rejects cross-position swaps.
+//
 //   - Budget: Σ(selling prices) + bank ≥ Σ(purchase prices). The bank and
 //     selling prices are in tenths of £m; the function tracks the running
 //     budget as each suggestion is locked in.
+//
 //   - maxHits: stops proposing transfers when the resulting points-hit
 //     estimate would exceed the cap. Each transfer beyond the user's free
 //     quota costs 4 points.
 //
-// The 3-players-per-team constraint is NOT enforced here — the FPL server
-// validates it on commit. The Pick struct returned by /api/my-team/ does not
-// include team_id, so a local check would require an external lookup that
-// complicates the call site; the server is the source of truth.
+//   - Team cap: never returns a bundle that exceeds three players for any team
+//     present in idToTeam. Unknown player IDs are left to server validation.
 //
 // Algorithm (greedy):
 //  1. Identify IN candidates (optimal players not in current squad) sorted
@@ -95,6 +95,7 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int, 
 
 	bank := current.Transfers.Bank
 	usedFree := current.Transfers.Made
+	teamCounts := teamCount(current.Picks, idToTeam)
 
 	// Unlimited transfers (Wildcard / Free Hit / start of season) surface as
 	// limit=null + status="unlimited" in the 2026-era API. In that case the
@@ -126,15 +127,7 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int, 
 			break
 		}
 
-		// 3-per-team cap. Track counts as we lock in each swap.
-		// start from the user's current counts and adjust as we go.
-		if idToTeam != nil {
-			inTeam := idToTeam[in.Player.ID]
-			current := teamCount(current.Picks, idToTeam)
-			if current[inTeam] >= 3 {
-				continue // IN's team is already full in the user's squad
-			}
-		}
+		inTeam, inTeamKnown := idToTeam[in.Player.ID]
 
 		bestIdx := -1
 		bestUplift := -1e18
@@ -144,8 +137,6 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int, 
 				continue
 			}
 			outPick := outgoing[i].pick
-			// FPL rejects transfers that swap across positions. Skip OUTs
-			// whose element_type doesn't match the IN's.
 			if outgoing[i].elementType != in.Player.ElementType {
 				continue
 			}
@@ -163,33 +154,17 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int, 
 			continue
 		}
 
-		// After picking this swap, check the IN's team isn't over 3.
-		// (We already checked the IN's team isn't full, but the OUT
-		// could be the 3rd player of a different team that the IN's team
-		// shares, or vice versa.) Since OUT/IN element_types match and
-		// we're swapping within the same position, the team cap simply
-		// means: don't bring in a player whose team already has 3 in
-		// the post-swap state.
-		if idToTeam != nil {
-			inTeam := idToTeam[in.Player.ID]
-			postCount := teamCount(current.Picks, idToTeam)
-			// Apply committed swaps to a working copy of postCount.
-			for _, s := range suggestions {
-				outTeam := idToTeam[s.Out.Player.ID]
-				postCount[outTeam]--
-				inTeam2 := idToTeam[s.In.Player.ID]
-				postCount[inTeam2]++
+		outPick := outgoing[bestIdx].pick
+		if inTeamKnown {
+			postInCount := teamCounts[inTeam]
+			if outTeam, outTeamKnown := idToTeam[outPick.Element]; outTeamKnown && outTeam == inTeam {
+				postInCount--
 			}
-			outTeam := idToTeam[outgoing[bestIdx].pick.Element]
-			postCount[outTeam]--
-			postCount[inTeam]++
-			if postCount[inTeam] > 3 {
-				used[bestIdx] = true
+			if postInCount >= 3 {
 				continue
 			}
 		}
 
-		outPick := outgoing[bestIdx].pick
 		outSP := makeOutScoredPlayer(outPick, 0)
 		suggestions = append(suggestions, TransferSuggestion{
 			Out:           outSP,
@@ -201,6 +176,12 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int, 
 
 		bank -= in.Player.NowCost - outPick.SellingPrice
 		used[bestIdx] = true
+		if outTeam, outTeamKnown := idToTeam[outPick.Element]; outTeamKnown {
+			teamCounts[outTeam]--
+		}
+		if inTeamKnown {
+			teamCounts[inTeam]++
+		}
 	}
 
 	return suggestions

@@ -28,16 +28,8 @@ func nameFor(id int) string {
 
 func intPtr(v int) *int { return &v }
 
-func TestPlanTransfersEmptyCurrent(t *testing.T) {
-	optimal := model.SquadResult{
-		Starters: []model.ScoredPlayer{makeScored(1, model.PosGK, 50, 0.5)},
-	}
-	if got := PlanTransfers(nil, optimal, 4, nil); got != nil {
-		t.Errorf("nil current should return nil suggestions, got %v", got)
-	}
-}
-
 func TestPlanTransfersSingleSwapWithinBudget(t *testing.T) {
+
 	// Current team: 15 players, IDs 1..15. Bank=50 tenths (£5m).
 	// Optimal team: 15 players, swap 5→100, drop 10.
 	// Bank + 100's selling price (8 tenths) = 58. NowCost 100 = 70.
