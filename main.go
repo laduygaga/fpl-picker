@@ -1,16 +1,20 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
 	"fpl-picker/api"
+	"fpl-picker/apply"
+	"fpl-picker/credentials"
 	"fpl-picker/display"
 	"fpl-picker/model"
 )
@@ -18,6 +22,17 @@ import (
 const teamFile = ".fpl-team.txt"
 
 func main() {
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
+		switch os.Args[1] {
+		case "apply":
+			applyMain(os.Args[2:])
+			return
+		}
+	}
+	pickMain(os.Args[1:])
+}
+
+func pickMain(args []string) {
 	budget := flag.Float64("budget", 100.0, "Total budget in £M (default: 100.0)")
 	topN := flag.Int("top", 5, "Show top N players per position")
 	diffN := flag.Int("diff", 10, "Show top N differential picks (low ownership)")
@@ -28,7 +43,7 @@ func main() {
 	excluded := flag.String("excluded", "", "Comma-separated player web names to exclude from picks")
 	excludedTeams := flag.String("excluded-teams", "", "Comma-separated team short names to exclude (e.g. ARS,MCI)")
 	formula := flag.String("formula", "1", "Scoring formula: 1/balanced, 2/attacker, 3/defender")
-	flag.Parse()
+	_ = flag.CommandLine.Parse(args)
 
 	teamNames := resolveTeamNames(*myTeam, *saveTeam)
 
@@ -101,6 +116,303 @@ func main() {
 	if *diffN > 0 {
 		display.PrintDifferentials(scored, *diffMax, *diffN)
 	}
+}
+
+func applyMain(args []string) {
+	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	emailFlag := fs.String("email", "", "FPL login email")
+	passwordFlag := fs.String("password", "", "FPL login password")
+	saveCacheFlag := fs.Bool("save-cache", false, "Save credentials encrypted to the credential cache")
+	passphraseFlag := fs.String("passphrase", "", "Passphrase for the credential cache")
+	clearCacheFlag := fs.Bool("clear-cache", false, "Delete the credential cache and exit")
+	applyFlag := fs.Bool("apply", false, "Actually post changes; default is dry-run")
+	chipFlag := fs.String("chip", "", "Activate chip: wildcard, freehit, bboost, or 3xc")
+	noTransfersFlag := fs.Bool("no-transfers", false, "Skip transfer planning and posting")
+	noLineupFlag := fs.Bool("no-lineup", false, "Skip lineup posting")
+	maxHitsFlag := fs.Int("max-hits", 4, "Maximum points hits to accept")
+	gwFlag := fs.Int("gw", 0, "Gameweek; default is the next gameweek")
+	formulaFlag := fs.String("formula", "1", "Scoring formula passed through to the scorer")
+	freshFlag := fs.Bool("fresh", false, "Bypass the FPL API cache")
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+
+	if *clearCacheFlag {
+		if err := credentials.Clear(); err != nil {
+			fmt.Fprintf(os.Stderr, "Could not clear credential cache: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, "Credential cache cleared.")
+		return
+	}
+
+	if *maxHitsFlag < 0 {
+		fmt.Fprintln(os.Stderr, "Validation failed: --max-hits must be non-negative.")
+		os.Exit(1)
+	}
+	if *chipFlag != "" {
+		validChips := map[string]bool{"wildcard": true, "freehit": true, "bboost": true, "3xc": true}
+		if !validChips[*chipFlag] {
+			fmt.Fprintf(os.Stderr, "Validation failed: unsupported chip %q.\n", *chipFlag)
+			os.Exit(1)
+		}
+	}
+
+	mode := "dry-run"
+	if *applyFlag {
+		mode = "APPLYING"
+	}
+	fmt.Fprintf(os.Stderr, "=== APPLY: %s ===\n", mode)
+
+	scanner := bufio.NewScanner(os.Stdin)
+	email := strings.TrimSpace(*emailFlag)
+	password := *passwordFlag
+	if email != "" && password != "" && *saveCacheFlag {
+		passphrase := *passphraseFlag
+		if passphrase == "" {
+			// TODO: use golang.org/x/term in production for no-echo prompts.
+			passphrase = readApplyPrompt(scanner, "Cache passphrase")
+		}
+		if err := credentials.Save(email, password, passphrase); err != nil {
+			fmt.Fprintf(os.Stderr, "Could not save credentials: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, "Credentials saved to encrypted cache.")
+	} else if *saveCacheFlag && credentials.Exists() {
+		passphrase := *passphraseFlag
+		if passphrase == "" {
+			// TODO: use golang.org/x/term in production for no-echo prompts.
+			passphrase = readApplyPrompt(scanner, "Cache passphrase")
+		}
+		var err error
+		email, password, err = credentials.Load(passphrase)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Could not load credentials: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		if email == "" {
+			email = strings.TrimSpace(readApplyPrompt(scanner, "FPL email"))
+		}
+		if password == "" {
+			// TODO: use golang.org/x/term in production for no-echo prompts.
+			password = readApplyPrompt(scanner, "FPL password")
+		}
+	}
+	if email == "" || password == "" {
+		fmt.Fprintln(os.Stderr, "Validation failed: email and password are required.")
+		os.Exit(1)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	client := api.NewAuthClient(ctx)
+	if err := client.Login(email, password); err != nil {
+		fmt.Fprintf(os.Stderr, "Login failed: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stderr, "Logged in as %s\n", email)
+
+	me, err := client.Me()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not discover team ID: %v\n", err)
+		os.Exit(1)
+	}
+	teamID, err := strconv.Atoi(me.Entry.String())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Validation failed: invalid team ID %q: %v\n", me.Entry, err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stderr, "Team ID: %d\n", teamID)
+
+	myTeam, err := client.GetMyTeam(teamID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not fetch current team: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stderr, "Loaded current team with %d picks.\n", len(myTeam.Picks))
+
+	apiClient := api.NewClient(ctx)
+	if *freshFlag {
+		fmt.Fprintln(os.Stderr, "Clearing API cache...")
+		if err := apiClient.ClearCache(); err != nil {
+			fmt.Fprintf(os.Stderr, "Could not clear API cache: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	fmt.Fprintln(os.Stderr, "Fetching FPL data...")
+	bootstrap, fixtures, err := fetchData(apiClient)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	scorer := model.NewScorer(bootstrap.Teams, fixtures, bootstrap.Events, bootstrap.Elements, *formulaFlag)
+	f := model.GetFormula(*formulaFlag)
+	fmt.Fprintf(os.Stderr, "Using formula: %s (FDR=%.0f%%, Pts=%.0f%%, Form=%.0f%%, XGI=%.0f%%, ICT=%.0f%%)\n",
+		f.Name, f.FDR*100, f.Pts*100, f.Form*100, f.XGI*100, f.ICT*100)
+	scored := scorer.ScoreAll(bootstrap.Elements)
+	fmt.Fprintf(os.Stderr, "Scoring %d eligible players for GW%d...\n", len(scored), scorer.NextEventID())
+	sort.Slice(scored, func(i, j int) bool { return scored[i].Score > scored[j].Score })
+	optimized := model.FindBestSquad(scored, 1000, scorer.FixturePairings())
+	if *gwFlag > 0 {
+		fmt.Fprintf(os.Stderr, "Using requested gameweek %d for display; apply backend targets its detected next gameweek.\n", *gwFlag)
+	}
+	fmt.Fprintln(os.Stderr, "Squad optimization complete.")
+	display.PrintSquad(optimized, scorer.NextEventID())
+
+	options := apply.Options{
+		Apply:         false,
+		Chip:          *chipFlag,
+		MaxHits:       *maxHitsFlag,
+		SkipTransfers: *noTransfersFlag,
+		SkipLineup:    *noLineupFlag,
+	}
+	preview, err := apply.Run(ctx, client, myTeam, optimized, options)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Apply planning failed: %v\n", err)
+		os.Exit(1)
+	}
+	printApplyDiff(applyDiffOptions{
+		team:          myTeam,
+		optimized:     optimized,
+		players:       bootstrap.Elements,
+		maxHits:       *maxHitsFlag,
+		chip:          *chipFlag,
+		skipTransfers: *noTransfersFlag,
+		skipLineup:    *noLineupFlag,
+	})
+	printApplyResult(preview, false)
+
+	if !*applyFlag {
+		return
+	}
+	if !confirmApply(scanner) {
+		fmt.Fprintln(os.Stderr, "Apply cancelled; no changes were posted.")
+		return
+	}
+
+	options.Apply = true
+	result, err := apply.Run(ctx, client, myTeam, optimized, options)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Apply failed: %v\n", err)
+		os.Exit(1)
+	}
+	printApplyResult(result, true)
+}
+
+func readApplyPrompt(scanner *bufio.Scanner, label string) string {
+	fmt.Fprintf(os.Stderr, "%s: ", label)
+	if !scanner.Scan() {
+		return ""
+	}
+	return strings.TrimSuffix(scanner.Text(), "\r")
+}
+
+func confirmApply(scanner *bufio.Scanner) bool {
+	answer := strings.ToLower(strings.TrimSpace(readApplyPrompt(scanner, "Post these changes? [y/N]")))
+	return answer == "y" || answer == "yes"
+}
+
+type applyDiffOptions struct {
+	team          *api.MyTeam
+	optimized     model.SquadResult
+	players       []api.Player
+	maxHits       int
+	chip          string
+	skipTransfers bool
+	skipLineup    bool
+}
+
+func printApplyDiff(options applyDiffOptions) {
+	team := options.team
+	optimized := options.optimized
+	players := options.players
+	maxHits := options.maxHits
+	chip := options.chip
+	skipTransfers := options.skipTransfers
+	skipLineup := options.skipLineup
+	nameByID := make(map[int]string, len(players))
+	for _, player := range players {
+		nameByID[player.ID] = player.WebName
+	}
+	currentIDs := make(map[int]bool, len(team.Picks))
+	for _, pick := range team.Picks {
+		currentIDs[pick.Element] = true
+	}
+	targetIDs := make(map[int]bool, len(optimized.Starters)+len(optimized.Bench))
+	for _, player := range optimized.Starters {
+		targetIDs[player.Player.ID] = true
+	}
+	for _, player := range optimized.Bench {
+		targetIDs[player.Player.ID] = true
+	}
+
+	var outgoing, incoming []string
+	for id := range currentIDs {
+		if !targetIDs[id] {
+			outgoing = append(outgoing, fmt.Sprintf("%s (%d)", nameByID[id], id))
+		}
+	}
+	for id := range targetIDs {
+		if !currentIDs[id] {
+			incoming = append(incoming, fmt.Sprintf("%s (%d)", nameByID[id], id))
+		}
+	}
+	sort.Strings(outgoing)
+	sort.Strings(incoming)
+
+	currentCaptain := "none"
+	currentVice := "none"
+	for _, pick := range team.Picks {
+		if pick.IsCaptain {
+			currentCaptain = nameByID[pick.Element]
+		}
+		if pick.IsViceCaptain {
+			currentVice = nameByID[pick.Element]
+		}
+	}
+	fmt.Fprintln(os.Stderr, "\nPlanned changes (shown before any POST):")
+	if skipLineup {
+		fmt.Fprintln(os.Stderr, "  Lineup: skipped")
+	} else {
+		fmt.Fprintf(os.Stderr, "  Captain: %s -> %s\n", currentCaptain, optimized.Captain.Player.WebName)
+		fmt.Fprintf(os.Stderr, "  Vice-captain: %s -> %s\n", currentVice, optimized.ViceCaptain.Player.WebName)
+		lineupChange := "would change"
+		if len(outgoing) == 0 && len(incoming) == 0 && currentCaptain == optimized.Captain.Player.WebName {
+			lineupChange = "no changes detected"
+		}
+		fmt.Fprintf(os.Stderr, "  Lineup: %s\n", lineupChange)
+	}
+	if skipTransfers {
+		fmt.Fprintln(os.Stderr, "  Transfers: skipped")
+	} else {
+		fmt.Fprintf(os.Stderr, "  Transfers out: %s\n", strings.Join(outgoing, ", "))
+		fmt.Fprintf(os.Stderr, "  Transfers in: %s\n", strings.Join(incoming, ", "))
+		fmt.Fprintf(os.Stderr, "  Points hits: capped at %d\n", maxHits)
+	}
+	if chip == "" {
+		fmt.Fprintln(os.Stderr, "  Chip: none")
+	} else {
+		fmt.Fprintf(os.Stderr, "  Chip: %s\n", chip)
+	}
+}
+
+func printApplyResult(result *apply.Result, committed bool) {
+	mode := "dry-run"
+	if committed {
+		mode = "applied"
+	}
+	fmt.Fprintf(os.Stdout, "\nApply summary (%s)\n", mode)
+	fmt.Fprintln(os.Stdout, "-------------------")
+	fmt.Fprintf(os.Stdout, "Lineup changed:    %t\n", result.LineupChanged)
+	fmt.Fprintf(os.Stdout, "Transfers planned: %d\n", result.TransfersPlanned)
+	fmt.Fprintf(os.Stdout, "Transfers made:    %d\n", result.TransfersMade)
+	fmt.Fprintf(os.Stdout, "Points hits:       %d\n", result.PointsHits)
+	fmt.Fprintf(os.Stdout, "Bank:              %d\n", result.Bank)
+	fmt.Fprintf(os.Stdout, "Squad value:       %d\n", result.SquadValue)
 }
 
 func parseNames(csv string) []string {
