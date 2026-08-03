@@ -161,6 +161,8 @@ fpl-picker apply [flags]
 | `--passphrase` | (prompt) | Passphrase for the encrypted credential cache |
 | `--save-cache` | false | Save credentials encrypted to `~/.config/fpl-picker/.cached` (passphrase-protected) |
 | `--clear-cache` | false | Delete the credential cache and exit |
+| `--cookies` | "" | Cookie header from a logged-in browser session. Skips the login form. See [Cookie-paste auth](#cookie-paste-auth) below. |
+| `--cookies-file` | "" | Path to a file containing cookies in the same format as `--cookies` |
 | `--apply` | false | Actually post changes (default: dry-run) |
 | `--chip` | "" | Activate chip: `wildcard`|`freehit`|`bboost`|`3xc` |
 | `--no-transfers` | false | Skip transfer planning (lineup only) |
@@ -213,6 +215,37 @@ fpl-picker apply --max-hits 8 --apply
   403s — this is necessary because FPL blocks some non-browser UAs.
 - Cookie storage is in-process only (Go's `net/http/cookiejar`). No cookies
   are persisted to disk by this tool.
+
+### Cookie-paste auth
+
+The default login flow POSTs to `https://users.premierleague.com/accounts/login/`,
+which may be blocked by some networks (DNS unreachable, regional restrictions,
+or FPL may migrate to OAuth-only auth). If `Login failed: ... no such host`
+or similar errors appear, use `--cookies` instead:
+
+1. Log into [fantasy.premierleague.com](https://fantasy.premierleague.com) in your
+   browser (the modern login goes via `account.premierleague.com`).
+2. Open DevTools (F12) → **Application** → **Cookies** → `https://fantasy.premierleague.com`
+   (and `https://account.premierleague.com`).
+3. Copy the cookie names + values. At minimum you need:
+   - `pl_profile` — the gating auth cookie. Without this every private API
+     call returns `403 "Authentication credentials were not provided."`
+   - `csrftoken` — required for `POST /api/transfers/` and lineup updates.
+   - `sessionid` — Django session cookie.
+4. Pass them via flag or file:
+
+```
+fpl-picker apply --cookies "pl_profile=abc123; csrftoken=def456; sessionid=ghi789"
+```
+
+or save them to a file with the same format (one cookie per `name=value`,
+separated by `;`) and use `--cookies-file ~/.fpl-cookies.txt`.
+
+Cookies expire in ~30 days, just like a browser session. If you see
+`Cookies invalid or expired`, re-export them.
+
+**Treat the cookie file like a password** — it grants full access to your
+FPL account. `chmod 600` it.
 
 ### Sample Output
 

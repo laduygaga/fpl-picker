@@ -134,6 +134,8 @@ func applyMain(args []string) {
 	gwFlag := fs.Int("gw", 0, "Gameweek; default is the next gameweek")
 	formulaFlag := fs.String("formula", "1", "Scoring formula passed through to the scorer")
 	freshFlag := fs.Bool("fresh", false, "Bypass the FPL API cache")
+	cookiesFlag := fs.String("cookies", "", "Cookie header value from a logged-in browser session (e.g. 'pl_profile=...; csrftoken=...'). Skips the login flow.")
+	cookiesFileFlag := fs.String("cookies-file", "", "Path to a file containing cookies (same format as --cookies)")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -209,11 +211,35 @@ func applyMain(args []string) {
 	defer stop()
 
 	client := api.NewAuthClient(ctx)
-	if err := client.Login(email, password); err != nil {
-		fmt.Fprintf(os.Stderr, "Login failed: %v\n", err)
-		os.Exit(1)
+
+	cookieSource := *cookiesFlag
+	if cookieSource == "" && *cookiesFileFlag != "" {
+		data, err := os.ReadFile(*cookiesFileFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Could not read cookies file: %v\n", err)
+			os.Exit(1)
+		}
+		cookieSource = string(data)
 	}
-	fmt.Fprintf(os.Stderr, "Logged in as %s\n", email)
+	if cookieSource != "" {
+		n, err := client.LoadCookies(cookieSource)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Could not load cookies: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "Loaded %d cookie(s) from %s.\n", n, cookieLabel(*cookiesFlag, *cookiesFileFlag))
+		ok, err := client.IsLoggedIn()
+		if err != nil || !ok {
+			fmt.Fprintf(os.Stderr, "Cookies invalid or expired (IsLoggedIn=%v err=%v).\n", ok, err)
+			os.Exit(1)
+		}
+	} else {
+		if err := client.Login(email, password); err != nil {
+			fmt.Fprintf(os.Stderr, "Login failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "Logged in as %s\n", email)
+	}
 
 	me, err := client.Me()
 	if err != nil {
@@ -309,6 +335,13 @@ func readApplyPrompt(scanner *bufio.Scanner, label string) string {
 		return ""
 	}
 	return strings.TrimSuffix(scanner.Text(), "\r")
+}
+
+func cookieLabel(flagVal, fileFlagVal string) string {
+	if fileFlagVal != "" {
+		return fileFlagVal
+	}
+	return "--cookies"
 }
 
 func confirmApply(scanner *bufio.Scanner) bool {

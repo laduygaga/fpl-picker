@@ -155,6 +155,67 @@ func (c *AuthClient) Login(email, password string) error {
 	}
 }
 
+// LoadCookies seeds the jar from a Netscape-style cookie header value
+// ("name1=value1; name2=value2; ..."). All cookies are scoped to the
+// fantasy.premierleague.com domain so subsequent API calls authenticate.
+//
+// Typical cookies to include (export from your browser after logging in at
+// fantasy.premierleague.com):
+//
+//	pl_profile  — the gating auth cookie. Without this every private API
+//	              call returns 403 "Authentication credentials were not
+//	              provided."
+//	csrftoken    — required by POSTs to /api/transfers/ and the lineup
+//	              update endpoint.
+//	sessionid    — Django session cookie (typically optional for read-only
+//	              access; required for writes alongside csrftoken).
+//
+// Domain (.premierleague.com) matches all subdomains — fantasy, users,
+// account. We attach them all to fantasy.premierleague.com as the single
+// API origin.
+//
+// Use this when the FPL login flow is unreachable (DNS block, OAuth-only
+// auth, etc.). The user logs into fantasy.premierleague.com in their
+// browser, exports cookies via DevTools, and pastes them here. The cookies
+// expire after ~30 days, just like a browser session.
+//
+// Returns the number of cookies successfully loaded.
+func (c *AuthClient) LoadCookies(headerValue string) (int, error) {
+	base, err := url.Parse(c.baseURL + "/")
+	if err != nil {
+		return 0, fmt.Errorf("parse base URL: %w", err)
+	}
+
+	now := time.Now()
+	var cookies []*http.Cookie
+	for _, part := range strings.Split(headerValue, ";") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		eq := strings.IndexByte(part, '=')
+		if eq <= 0 {
+			continue
+		}
+		name := strings.TrimSpace(part[:eq])
+		value := strings.TrimSpace(part[eq+1:])
+		cookies = append(cookies, &http.Cookie{
+			Name:     name,
+			Value:    value,
+			Path:     "/",
+			Domain:   ".premierleague.com",
+			Secure:   true,
+			HttpOnly: false,
+			Expires:  now.Add(30 * 24 * time.Hour),
+		})
+	}
+	if len(cookies) == 0 {
+		return 0, errors.New("no cookies parsed from input")
+	}
+	c.http.Jar.SetCookies(base, cookies)
+	return len(cookies), nil
+}
+
 // Me is the parsed /api/me/ response. The "entry" field is the user's team_id.
 type Me struct {
 	Entry json.Number `json:"entry"` // team_id, parsed to int
