@@ -85,10 +85,27 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 			if req != nil {
 				spent, verr := PreviewPointsHits(ctx, client, *req)
 				if verr != nil {
-					if te := api.AsTransferError(verr); te != nil {
-						return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
+					// FPL may have committed earlier transfers in this
+					// batch even when one is invalid, leaving our cached
+					// `current` stale. Re-fetch + re-plan once.
+					if opts.Apply {
+						freshCurrent, ferr := client.GetMyTeam(entryID)
+						if ferr == nil && !samePlayerSet(freshCurrent, current) {
+							resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
+							if len(resuggested) > 0 {
+								suggestions = resuggested
+								res.TransfersPlanned = len(suggestions)
+								req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
+								spent, verr = PreviewPointsHits(ctx, client, *req)
+							}
+						}
 					}
-					return res, fmt.Errorf("apply: transfer validation error: %w", verr)
+					if verr != nil {
+						if te := api.AsTransferError(verr); te != nil {
+							return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
+						}
+						return res, fmt.Errorf("apply: transfer validation error: %w", verr)
+					}
 				}
 				res.PointsHits = spent
 				if opts.Apply {
@@ -126,4 +143,24 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 	}
 
 	return res, nil
+}
+
+// samePlayerSet reports whether two MyTeam snapshots reference the same 15
+// player IDs (ignoring position/captain/etc). Used to detect FPL's partial-
+// commit behaviour: the planner thinks transfers are needed but the server
+// has already applied some of them between our fetch and our POST.
+func samePlayerSet(a, b *api.MyTeam) bool {
+	if len(a.Picks) != len(b.Picks) {
+		return false
+	}
+	seen := make(map[int]bool, len(a.Picks))
+	for _, p := range a.Picks {
+		seen[p.Element] = true
+	}
+	for _, p := range b.Picks {
+		if !seen[p.Element] {
+			return false
+		}
+	}
+	return true
 }
