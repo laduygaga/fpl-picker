@@ -83,19 +83,24 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 		if len(suggestions) > 0 || opts.Chip != "" {
 			req := BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
 			if req != nil {
-				spent, verr := PreviewPointsHits(ctx, client, *req)
-				if verr != nil {
-					if te := api.AsTransferError(verr); te != nil {
-						return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
+				// Dry-run path: validate the initial plan to populate
+				// PointsHits and surface obvious errors. Apply path goes
+				// through the re-fetch block below instead.
+				if !opts.Apply {
+					spent, verr := PreviewPointsHits(ctx, client, *req)
+					if verr != nil {
+						if te := api.AsTransferError(verr); te != nil {
+							return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
+						}
+						return res, fmt.Errorf("apply: transfer validation error: %w", verr)
 					}
-					return res, fmt.Errorf("apply: transfer validation error: %w", verr)
-				}
-				res.PointsHits = spent
-				if opts.Apply {
-					// FPL's /api/my-team/ cache is very sticky: two
-					// consecutive fetches can return the same stale view.
-					// To survive this, re-fetch + re-plan RIGHT BEFORE
-					// commit, not just on failure. Adds one GET per apply.
+					res.PointsHits = spent
+				} else {
+					// Apply path: re-fetch + re-plan + validate + commit.
+					// FPL's /api/my-team/ cache is very sticky; two
+					// consecutive GETs can return the same stale view.
+					// The initial plan may be based on stale data, so we
+					// always re-plan right before posting.
 					freshCurrent, ferr := client.GetMyTeam(entryID)
 					if ferr == nil {
 						resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
@@ -103,11 +108,21 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 						res.TransfersPlanned = len(suggestions)
 						req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
 					}
-					cerr := client.CommitTransfers(*req)
-					if cerr != nil {
-						return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
+					if req != nil {
+						spent, verr := PreviewPointsHits(ctx, client, *req)
+						if verr != nil {
+							if te := api.AsTransferError(verr); te != nil {
+								return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
+							}
+							return res, fmt.Errorf("apply: transfer validation error: %w", verr)
+						}
+						res.PointsHits = spent
+						cerr := client.CommitTransfers(*req)
+						if cerr != nil {
+							return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
+						}
+						res.TransfersMade = len(suggestions)
 					}
-					res.TransfersMade = len(suggestions)
 				}
 			}
 		}
