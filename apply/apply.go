@@ -89,6 +89,33 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 				// through the re-fetch block below instead.
 				if !opts.Apply {
 					spent, verr := PreviewPointsHits(ctx, client, *req)
+					if isTeamLimitValidationError(verr) {
+						const maxAttempts = 5
+						backoff := 1 * time.Second
+						for attempt := 2; attempt <= maxAttempts; attempt++ {
+							freshCurrent, ferr := client.GetMyTeam(entryID)
+							if ferr != nil {
+								return res, fmt.Errorf("apply: refresh current team after transfer validation failed: %w", ferr)
+							}
+							suggestions = PlanTransfers(freshCurrent, optimal, opts.MaxHits, idToTeam)
+							res.TransfersPlanned = len(suggestions)
+							req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
+							if req == nil {
+								verr = nil
+								spent = 0
+								break
+							}
+							spent, verr = PreviewPointsHits(ctx, client, *req)
+							if verr == nil || !isTeamLimitValidationError(verr) {
+								break
+							}
+							if attempt < maxAttempts {
+								fmt.Fprintf(os.Stderr, "warning: validate attempt %d failed (%v); retrying in %s\n", attempt, verr, backoff)
+								time.Sleep(backoff)
+								backoff *= 2
+							}
+						}
+					}
 					if verr != nil {
 						if te := api.AsTransferError(verr); te != nil {
 							return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
@@ -106,34 +133,50 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 					backoff := 1 * time.Second
 					for attempt := 1; attempt <= maxAttempts; attempt++ {
 						freshCurrent, ferr := client.GetMyTeam(entryID)
-						if ferr == nil {
-							resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits, idToTeam)
-							suggestions = resuggested
-							res.TransfersPlanned = len(suggestions)
-							req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
+						if ferr != nil {
+							if attempt == maxAttempts {
+								return res, fmt.Errorf("apply: refresh current team failed: %w", ferr)
+							}
+							fmt.Fprintf(os.Stderr, "warning: refresh attempt %d failed (%v); retrying in %s\n", attempt, ferr, backoff)
+							time.Sleep(backoff)
+							backoff *= 2
+							continue
 						}
-						if req != nil {
-							spent, verr := PreviewPointsHits(ctx, client, *req)
-							if verr == nil {
-								res.PointsHits = spent
-								cerr := client.CommitTransfers(*req)
-								if cerr == nil {
-									res.TransfersMade = len(suggestions)
-									break
-								}
-								if attempt == maxAttempts {
-									return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
-								}
-								fmt.Fprintf(os.Stderr, "warning: commit attempt %d failed (%v); retrying in %s\n", attempt, cerr, backoff)
-							} else if attempt == maxAttempts {
+
+						suggestions = PlanTransfers(freshCurrent, optimal, opts.MaxHits, idToTeam)
+						res.TransfersPlanned = len(suggestions)
+						req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
+						if req == nil {
+							break
+						}
+
+						spent, verr := PreviewPointsHits(ctx, client, *req)
+						if verr != nil {
+							if !isTeamLimitValidationError(verr) {
 								if te := api.AsTransferError(verr); te != nil {
 									return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
 								}
 								return res, fmt.Errorf("apply: transfer validation error: %w", verr)
-							} else {
-								fmt.Fprintf(os.Stderr, "warning: validate attempt %d failed (%v); retrying in %s\n", attempt, verr, backoff)
 							}
+							if attempt == maxAttempts {
+								return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
+							}
+							fmt.Fprintf(os.Stderr, "warning: validate attempt %d failed (%v); retrying in %s\n", attempt, verr, backoff)
+							time.Sleep(backoff)
+							backoff *= 2
+							continue
 						}
+
+						res.PointsHits = spent
+						cerr := client.CommitTransfers(*req)
+						if cerr == nil {
+							res.TransfersMade = len(suggestions)
+							break
+						}
+						if attempt == maxAttempts {
+							return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
+						}
+						fmt.Fprintf(os.Stderr, "warning: commit attempt %d failed (%v); retrying in %s\n", attempt, cerr, backoff)
 						time.Sleep(backoff)
 						backoff *= 2
 					}
@@ -167,6 +210,11 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 	}
 
 	return res, nil
+}
+
+func isTeamLimitValidationError(err error) bool {
+	transferErr := api.AsTransferError(err)
+	return transferErr != nil && transferErr.HasCode("transfer_team_limit_reached")
 }
 
 // samePlayerSet reports whether two MyTeam snapshots reference the same 15
