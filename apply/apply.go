@@ -51,20 +51,18 @@ type Result struct {
 // Errors are returned for unrecoverable conditions (auth failure, network
 // failure, validation failure). Validation failures from /api/transfers/
 // surface as wrapped *api.TransferError so the caller can match on errors.As.
-func Run(ctx context.Context, client *api.AuthClient, current *api.MyTeam, optimal model.SquadResult, opts Options) (*Result, error) {
+func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.MyTeam, optimal model.SquadResult, opts Options) (*Result, error) {
 	if client == nil {
 		return nil, fmt.Errorf("apply: nil auth client")
 	}
 	if current == nil {
 		return nil, fmt.Errorf("apply: nil current team")
 	}
+	if entryID == 0 {
+		return nil, fmt.Errorf("apply: entry id is required (pass it explicitly; the 2026-era FPL API no longer echoes it inside the transfers block)")
+	}
 	if opts.MaxHits == 0 {
 		opts.MaxHits = 4
-	}
-
-	entryID := current.Transfers.Entry
-	if entryID == 0 {
-		return nil, fmt.Errorf("apply: current team has no entry id")
 	}
 
 	res := &Result{

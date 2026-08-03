@@ -89,7 +89,7 @@ func TestFormatPlayerWithEmptyWebName(t *testing.T) {
 }
 
 func TestRunRejectsNilClient(t *testing.T) {
-	_, err := Run(context.Background(), nil, &api.MyTeam{Transfers: api.TransferStatus{Entry: 1}}, model.SquadResult{}, Options{})
+	_, err := Run(context.Background(), nil, 1, &api.MyTeam{}, model.SquadResult{}, Options{})
 	if err == nil {
 		t.Fatal("expected error for nil client")
 	}
@@ -97,7 +97,7 @@ func TestRunRejectsNilClient(t *testing.T) {
 
 func TestRunRejectsNilCurrent(t *testing.T) {
 	client := api.NewAuthClient(context.Background())
-	_, err := Run(context.Background(), client, nil, model.SquadResult{}, Options{})
+	_, err := Run(context.Background(), client, 1, nil, model.SquadResult{}, Options{})
 	if err == nil {
 		t.Fatal("expected error for nil current team")
 	}
@@ -105,7 +105,7 @@ func TestRunRejectsNilCurrent(t *testing.T) {
 
 func TestRunRejectsZeroEntry(t *testing.T) {
 	client := api.NewAuthClient(context.Background())
-	_, err := Run(context.Background(), client, &api.MyTeam{}, model.SquadResult{}, Options{})
+	_, err := Run(context.Background(), client, 0, &api.MyTeam{}, model.SquadResult{}, Options{})
 	if err == nil {
 		t.Fatal("expected error for zero entry id")
 	}
@@ -141,7 +141,7 @@ func TestRunEndToEndDryRun(t *testing.T) {
 		t.Fatalf("GetMyTeam: %v", err)
 	}
 
-	res, err := Run(context.Background(), client, current, model.SquadResult{}, Options{
+	res, err := Run(context.Background(), client, 1, current, model.SquadResult{}, Options{
 		Apply:         false,
 		SkipTransfers: true,
 		SkipLineup:    true,

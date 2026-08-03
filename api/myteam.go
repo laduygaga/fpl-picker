@@ -31,11 +31,12 @@ type Pick struct {
 // TransferStatus reports bank, squad value, free transfer budget, and how
 // many transfers the user has already committed this gameweek.
 type TransferStatus struct {
-	Bank  int `json:"bank"`  // tenths of £m
-	Value int `json:"value"` // squad value (without bank), tenths of £m
-	Limit int `json:"limit"` // free transfers available this GW
-	Made  int `json:"made"`  // transfers already used this GW
-	Entry int `json:"entry"` // team_id (echoed by the server)
+	Bank   int    `json:"bank"`             // tenths of £m
+	Value  int    `json:"value"`            // squad value (without bank), tenths of £m
+	Limit  *int   `json:"limit,omitempty"`  // free transfers available this GW; nil means unlimited (Wildcard/Free Hit)
+	Made   int    `json:"made"`             // transfers already used this GW
+	Entry  int    `json:"entry,omitempty"`  // team_id (omitted in the 2026-era API; pass it from Me.Entry instead)
+	Status string `json:"status,omitempty"` // "ok", "unlimited" (Wildcard/Free Hit active), etc.
 }
 
 // ChipInfo describes one chip the user has left to play.

@@ -26,6 +26,8 @@ func nameFor(id int) string {
 	return "P" + string(rune('A'+((id-1)%26)))
 }
 
+func intPtr(v int) *int { return &v }
+
 func TestPlanTransfersEmptyCurrent(t *testing.T) {
 	optimal := model.SquadResult{
 		Starters: []model.ScoredPlayer{makeScored(1, model.PosGK, 50, 0.5)},
@@ -53,7 +55,7 @@ func TestPlanTransfersSingleSwapWithinBudget(t *testing.T) {
 	current := &api.MyTeam{
 		Picks: currentPicks,
 		Transfers: api.TransferStatus{
-			Bank: 50, Value: 750, Limit: 1, Made: 0, Entry: 3808385,
+			Bank: 50, Value: 750, Limit: intPtr(1), Made: 0, Entry: 3808385,
 		},
 	}
 
@@ -111,7 +113,7 @@ func TestPlanTransfersRespectsMaxHits(t *testing.T) {
 	}
 	current := &api.MyTeam{
 		Picks:     currentPicks,
-		Transfers: api.TransferStatus{Bank: 1000, Limit: 0, Made: 0, Entry: 1},
+		Transfers: api.TransferStatus{Bank: 1000, Limit: intPtr(0), Made: 0, Entry: 1},
 	}
 
 	var optimalStarters []model.ScoredPlayer
@@ -170,7 +172,7 @@ func TestPlanTransfersNoSuggestionsWhenAlreadyOptimal(t *testing.T) {
 	}
 	current := &api.MyTeam{
 		Picks:     currentPicks,
-		Transfers: api.TransferStatus{Bank: 50, Limit: 1, Made: 0, Entry: 1},
+		Transfers: api.TransferStatus{Bank: 50, Limit: intPtr(1), Made: 0, Entry: 1},
 	}
 	optimal := model.SquadResult{
 		Starters: optimalStarters,

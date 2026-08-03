@@ -132,8 +132,12 @@ func TestGetMyTeamParses(t *testing.T) {
 	if team.Transfers.Bank != 26 {
 		t.Errorf("bank = %d, want 26", team.Transfers.Bank)
 	}
-	if team.Transfers.Limit != 1 {
-		t.Errorf("limit = %d, want 1", team.Transfers.Limit)
+	if team.Transfers.Limit == nil || *team.Transfers.Limit != 1 {
+		var got int
+		if team.Transfers.Limit != nil {
+			got = *team.Transfers.Limit
+		}
+		t.Errorf("limit = %d, want 1", got)
 	}
 	if len(team.Chips) != 4 {
 		t.Errorf("len(chips) = %d, want 4", len(team.Chips))

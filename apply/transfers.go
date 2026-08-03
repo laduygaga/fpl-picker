@@ -95,7 +95,18 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) 
 
 	bank := current.Transfers.Bank
 	usedFree := current.Transfers.Made
-	freeLimit := current.Transfers.Limit
+
+	// Unlimited transfers (Wildcard / Free Hit / start of season) surface as
+	// limit=null + status="unlimited" in the 2026-era API. In that case the
+	// hit-accounting math uses a sentinel large free count so hits are zero.
+	freeLimit := 0
+	if current.Transfers.Limit != nil {
+		freeLimit = *current.Transfers.Limit
+	}
+	unlimited := current.Transfers.Status == "unlimited"
+	if unlimited {
+		freeLimit = 1000
+	}
 
 	var suggestions []TransferSuggestion
 	used := make([]bool, len(outgoing))
@@ -105,6 +116,10 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) 
 	// many transfers and stop.
 	freeRemaining := max(freeLimit-usedFree, 0)
 	maxByHits := max(freeRemaining+maxHits/4, 0)
+	if unlimited {
+		// A cap on transfers per run is still useful for sanity; use 30.
+		maxByHits = 30
+	}
 
 	for _, in := range incoming {
 		if len(suggestions) >= maxByHits {
