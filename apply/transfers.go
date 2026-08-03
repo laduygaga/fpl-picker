@@ -103,14 +103,8 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) 
 	// Pre-compute how many free transfers remain. With maxHits=0 the caller
 	// refuses to spend any points on hits, so we cap suggestions to that
 	// many transfers and stop.
-	freeRemaining := freeLimit - usedFree
-	if freeRemaining < 0 {
-		freeRemaining = 0
-	}
-	maxByHits := freeRemaining + maxHits/4
-	if maxByHits < 0 {
-		maxByHits = 0
-	}
+	freeRemaining := max(freeLimit-usedFree, 0)
+	maxByHits := max(freeRemaining+maxHits/4, 0)
 
 	for _, in := range incoming {
 		if len(suggestions) >= maxByHits {
@@ -181,10 +175,7 @@ func hitsExceeded(usedFree, freeLimit, proposed int, maxHits int) bool {
 		return proposed > 0
 	}
 	total := usedFree + proposed
-	hits := (total - freeLimit) * 4
-	if hits < 0 {
-		hits = 0
-	}
+	hits := max((total-freeLimit)*4, 0)
 	if maxHits == 0 {
 		return hits > 0
 	}
