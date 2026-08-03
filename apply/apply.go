@@ -52,7 +52,7 @@ type Result struct {
 // Errors are returned for unrecoverable conditions (auth failure, network
 // failure, validation failure). Validation failures from /api/transfers/
 // surface as wrapped *api.TransferError so the caller can match on errors.As.
-func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.MyTeam, optimal model.SquadResult, opts Options) (*Result, error) {
+func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.MyTeam, optimal model.SquadResult, opts Options, idToTeam map[int]int) (*Result, error) {
 	if client == nil {
 		return nil, fmt.Errorf("apply: nil auth client")
 	}
@@ -78,7 +78,7 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 
 	var suggestions []TransferSuggestion
 	if !opts.SkipTransfers {
-		suggestions = PlanTransfers(current, optimal, opts.MaxHits)
+		suggestions = PlanTransfers(current, optimal, opts.MaxHits, idToTeam)
 		res.TransfersPlanned = len(suggestions)
 
 		if len(suggestions) > 0 || opts.Chip != "" {
@@ -107,7 +107,7 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 					for attempt := 1; attempt <= maxAttempts; attempt++ {
 						freshCurrent, ferr := client.GetMyTeam(entryID)
 						if ferr == nil {
-							resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
+							resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits, idToTeam)
 							suggestions = resuggested
 							res.TransfersPlanned = len(suggestions)
 							req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)

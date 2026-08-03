@@ -32,7 +32,7 @@ func TestPlanTransfersEmptyCurrent(t *testing.T) {
 	optimal := model.SquadResult{
 		Starters: []model.ScoredPlayer{makeScored(1, model.PosGK, 50, 0.5)},
 	}
-	if got := PlanTransfers(nil, optimal, 4); got != nil {
+	if got := PlanTransfers(nil, optimal, 4, nil); got != nil {
 		t.Errorf("nil current should return nil suggestions, got %v", got)
 	}
 }
@@ -83,7 +83,7 @@ func TestPlanTransfersSingleSwapWithinBudget(t *testing.T) {
 		Bench:    optimalBench,
 	}
 
-	suggestions := PlanTransfers(current, optimal, 4)
+	suggestions := PlanTransfers(current, optimal, 4, nil)
 	// Should propose at least one transfer: 100 in, 5 out (5 isn't in optimal).
 	if len(suggestions) == 0 {
 		t.Fatal("expected at least one suggestion, got 0")
@@ -131,12 +131,12 @@ func TestPlanTransfersRespectsMaxHits(t *testing.T) {
 		},
 	}
 
-	got := PlanTransfers(current, optimal, 0)
+	got := PlanTransfers(current, optimal, 0, nil)
 	if len(got) != 0 {
 		t.Errorf("maxHits=0 should produce 0 suggestions, got %d", len(got))
 	}
 
-	got = PlanTransfers(current, optimal, 16)
+	got = PlanTransfers(current, optimal, 16, nil)
 	if len(got) == 0 {
 		t.Errorf("maxHits=16 should produce at least one suggestion, got 0")
 	}
@@ -179,7 +179,7 @@ func TestPlanTransfersNoSuggestionsWhenAlreadyOptimal(t *testing.T) {
 		Bench:    optimalBench,
 	}
 
-	if got := PlanTransfers(current, optimal, 4); len(got) != 0 {
+	if got := PlanTransfers(current, optimal, 4, nil); len(got) != 0 {
 		t.Errorf("already-optimal team should produce 0 suggestions, got %d: %+v", len(got), got)
 	}
 }

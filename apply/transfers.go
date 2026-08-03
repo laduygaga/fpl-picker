@@ -48,7 +48,7 @@ type TransferSuggestion struct {
 //     by selling price asc (cheapest first).
 //  3. For each IN, find the cheapest unused OUT of the SAME POSITION that
 //     fits the budget. Lock in the swap, update local bank, and continue.
-func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) []TransferSuggestion {
+func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int, idToTeam map[int]int) []TransferSuggestion {
 	if current == nil || len(current.Picks) == 0 {
 		return nil
 	}
@@ -126,6 +126,16 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) 
 			break
 		}
 
+		// 3-per-team cap. Track counts as we lock in each swap.
+		// start from the user's current counts and adjust as we go.
+		if idToTeam != nil {
+			inTeam := idToTeam[in.Player.ID]
+			current := teamCount(current.Picks, idToTeam)
+			if current[inTeam] >= 3 {
+				continue // IN's team is already full in the user's squad
+			}
+		}
+
 		bestIdx := -1
 		bestUplift := -1e18
 
@@ -151,6 +161,32 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) 
 		}
 		if bestIdx < 0 {
 			continue
+		}
+
+		// After picking this swap, check the IN's team isn't over 3.
+		// (We already checked the IN's team isn't full, but the OUT
+		// could be the 3rd player of a different team that the IN's team
+		// shares, or vice versa.) Since OUT/IN element_types match and
+		// we're swapping within the same position, the team cap simply
+		// means: don't bring in a player whose team already has 3 in
+		// the post-swap state.
+		if idToTeam != nil {
+			inTeam := idToTeam[in.Player.ID]
+			postCount := teamCount(current.Picks, idToTeam)
+			// Apply committed swaps to a working copy of postCount.
+			for _, s := range suggestions {
+				outTeam := idToTeam[s.Out.Player.ID]
+				postCount[outTeam]--
+				inTeam2 := idToTeam[s.In.Player.ID]
+				postCount[inTeam2]++
+			}
+			outTeam := idToTeam[outgoing[bestIdx].pick.Element]
+			postCount[outTeam]--
+			postCount[inTeam]++
+			if postCount[inTeam] > 3 {
+				used[bestIdx] = true
+				continue
+			}
 		}
 
 		outPick := outgoing[bestIdx].pick
@@ -205,7 +241,6 @@ func hitsExceeded(usedFree, freeLimit, proposed int, maxHits int) bool {
 // BuildTransferRequest converts a list of suggestions into the API request
 // shape that /api/transfers/ expects. eventID is the *target* gameweek
 // (next, not current). chip is "" or one of "wildcard" / "freehit".
-//
 // Returns nil when there are no transfers to send AND no chip to activate.
 func BuildTransferRequest(entryID, eventID int, suggestions []TransferSuggestion, chip string) *api.TransferRequest {
 	if len(suggestions) == 0 && chip == "" {
@@ -241,4 +276,19 @@ func PreviewPointsHits(ctx context.Context, client *api.AuthClient, req api.Tran
 		return 0, fmt.Errorf("apply: nil auth client")
 	}
 	return client.ValidateTransfers(req)
+}
+
+// teamCount tallies how many of the given picks belong to each team.
+// idToTeam maps player ID → team ID; entries without a known team are
+// skipped. Returns a map from team ID to count.
+func teamCount(picks []api.Pick, idToTeam map[int]int) map[int]int {
+	out := make(map[int]int, len(idToTeam))
+	for _, p := range picks {
+		t, ok := idToTeam[p.Element]
+		if !ok {
+			continue
+		}
+		out[t]++
+	}
+	return out
 }
