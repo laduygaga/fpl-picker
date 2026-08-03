@@ -87,15 +87,17 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 				if verr != nil {
 					// FPL may have committed earlier transfers in this
 					// batch even when one is invalid, leaving our cached
-					// `current` stale. Re-fetch + re-plan once.
+					// `current` stale. Always re-fetch + re-plan once on
+					// validation failure (don't gate on samePlayerSet —
+					// it can return true if both fetches hit FPL's stale cache).
 					if opts.Apply {
 						freshCurrent, ferr := client.GetMyTeam(entryID)
-						if ferr == nil && !samePlayerSet(freshCurrent, current) {
+						if ferr == nil {
 							resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
-							if len(resuggested) > 0 {
-								suggestions = resuggested
-								res.TransfersPlanned = len(suggestions)
-								req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
+							suggestions = resuggested
+							res.TransfersPlanned = len(suggestions)
+							req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
+							if req != nil {
 								spent, verr = PreviewPointsHits(ctx, client, *req)
 							}
 						}
