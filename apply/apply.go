@@ -85,11 +85,9 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 			if req != nil {
 				spent, verr := PreviewPointsHits(ctx, client, *req)
 				if verr != nil {
-					// FPL may have committed earlier transfers in this
-					// batch even when one is invalid, leaving our cached
-					// `current` stale. Always re-fetch + re-plan once on
-					// validation failure (don't gate on samePlayerSet —
-					// it can return true if both fetches hit FPL's stale cache).
+					// Validation failed — re-fetch + re-plan once.
+					// FPL's validation is lenient; stale `current` can
+					// pass validate then fail at commit time.
 					if opts.Apply {
 						freshCurrent, ferr := client.GetMyTeam(entryID)
 						if ferr == nil {
@@ -111,10 +109,32 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 				}
 				res.PointsHits = spent
 				if opts.Apply {
-					if cerr := client.CommitTransfers(*req); cerr != nil {
-						return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
+					cerr := client.CommitTransfers(*req)
+					if cerr != nil {
+						// Commit failed — FPL's commit is stricter than its
+						// validation. Re-fetch, re-plan, re-validate, and
+						// commit once more.
+						freshCurrent, ferr := client.GetMyTeam(entryID)
+						if ferr == nil {
+							resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
+							suggestions = resuggested
+							res.TransfersPlanned = len(suggestions)
+							req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
+							if req != nil {
+								if _, verr2 := PreviewPointsHits(ctx, client, *req); verr2 == nil {
+									cerr = client.CommitTransfers(*req)
+									if cerr == nil {
+										res.TransfersMade = len(suggestions)
+									}
+								}
+							}
+						}
+						if cerr != nil {
+							return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
+						}
+					} else {
+						res.TransfersMade = len(suggestions)
 					}
-					res.TransfersMade = len(suggestions)
 				}
 			}
 		}
