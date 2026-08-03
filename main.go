@@ -322,7 +322,7 @@ func applyMain(args []string) {
 		SkipTransfers: *noTransfersFlag,
 		SkipLineup:    *noLineupFlag,
 	}
-	preview, err := apply.Run(ctx, client, myTeam, optimized, options)
+	preview, err := apply.Run(ctx, client, teamID, myTeam, optimized, options)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Apply planning failed: %v\n", err)
 		os.Exit(1)
@@ -347,7 +347,7 @@ func applyMain(args []string) {
 	}
 
 	options.Apply = true
-	result, err := apply.Run(ctx, client, myTeam, optimized, options)
+	result, err := apply.Run(ctx, client, teamID, myTeam, optimized, options)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Apply failed: %v\n", err)
 		os.Exit(1)
