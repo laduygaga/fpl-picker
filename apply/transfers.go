@@ -27,6 +27,8 @@ type TransferSuggestion struct {
 // PlanTransfers proposes transfers to take the user's current team toward the
 // optimizer's optimal squad. Constraints enforced:
 //
+//   - Position match: each OUT must have the same element_type as its IN.
+//     FPL's transfer endpoint rejects cross-position swaps.
 //   - Budget: Σ(selling prices) + bank ≥ Σ(purchase prices). The bank and
 //     selling prices are in tenths of £m; the function tracks the running
 //     budget as each suggestion is locked in.
@@ -43,10 +45,9 @@ type TransferSuggestion struct {
 //  1. Identify IN candidates (optimal players not in current squad) sorted
 //     by score desc.
 //  2. Identify OUT candidates (current players not in optimal squad) sorted
-//     by score asc (weakest first).
-//  3. For each IN, pick the OUT that yields the largest score uplift subject
-//     to budget. Lock in the swap, update local bank, and continue until
-//     no IN fits or hits cap is reached.
+//     by selling price asc (cheapest first).
+//  3. For each IN, find the cheapest unused OUT of the SAME POSITION that
+//     fits the budget. Lock in the swap, update local bank, and continue.
 func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) []TransferSuggestion {
 	if current == nil || len(current.Picks) == 0 {
 		return nil
@@ -75,22 +76,21 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) 
 	sort.Slice(incoming, func(i, j int) bool { return incoming[i].Score > incoming[j].Score })
 
 	type outCand struct {
-		pick      api.Pick
-		bestScore float64
+		pick        api.Pick
+		elementType int
 	}
 	var outgoing []outCand
 	for id, pick := range currentByID {
 		if _, ok := optimalByID[id]; ok {
 			continue
 		}
-		oc := outCand{pick: pick}
-		if sp, ok := optimalByID[id]; ok {
-			oc.bestScore = sp.Score
-		}
-		outgoing = append(outgoing, oc)
+		outgoing = append(outgoing, outCand{
+			pick:        pick,
+			elementType: pick.ElementType,
+		})
 	}
 	sort.Slice(outgoing, func(i, j int) bool {
-		return outgoing[i].bestScore < outgoing[j].bestScore
+		return outgoing[i].pick.SellingPrice < outgoing[j].pick.SellingPrice
 	})
 
 	bank := current.Transfers.Bank
@@ -134,11 +134,16 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) 
 				continue
 			}
 			outPick := outgoing[i].pick
+			// FPL rejects transfers that swap across positions. Skip OUTs
+			// whose element_type doesn't match the IN's.
+			if outgoing[i].elementType != in.Player.ElementType {
+				continue
+			}
 			netCost := in.Player.NowCost - outPick.SellingPrice
 			if netCost > bank {
 				continue
 			}
-			uplift := in.Score - outgoing[i].bestScore
+			uplift := in.Score
 			if uplift > bestUplift {
 				bestUplift = uplift
 				bestIdx = i
@@ -149,7 +154,7 @@ func PlanTransfers(current *api.MyTeam, optimal model.SquadResult, maxHits int) 
 		}
 
 		outPick := outgoing[bestIdx].pick
-		outSP := makeOutScoredPlayer(outPick, outgoing[bestIdx].bestScore)
+		outSP := makeOutScoredPlayer(outPick, 0)
 		suggestions = append(suggestions, TransferSuggestion{
 			Out:           outSP,
 			In:            in,
