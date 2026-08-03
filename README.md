@@ -163,8 +163,8 @@ fpl-picker apply [flags]
 | `--clear-cache` | false | Delete the credential cache and exit |
 | `--cookies` | "" | Cookie header from a logged-in browser session. Skips the login form. See [Cookie-paste auth](#cookie-paste-auth) below. |
 | `--cookies-file` | "" | Path to a file containing cookies in the same format as `--cookies` |
-| `--bearer` | "" | OAuth/JWT access token from localStorage. Sent as `Authorization: Bearer`. Use when cookies aren't sufficient. |
-| `--bearer-file` | "" | Path to a file containing the bearer token |
+| `--bearer` | "" | OAuth access token from localStorage (`x-api-authorization: Bearer`). The full oidc.user JSON also works — the token is extracted automatically. See [Bearer token auth](#bearer-token-auth) below. |
+| `--bearer-file` | "" | Path to a file containing the bearer token (or full oidc.user JSON) |
 | `--apply` | false | Actually post changes (default: dry-run) |
 | `--chip` | "" | Activate chip: `wildcard`|`freehit`|`bboost`|`3xc` |
 | `--no-transfers` | false | Skip transfer planning (lineup only) |
@@ -253,32 +253,39 @@ FPL account. `chmod 600` it.
 
 The 2026-era FPL SPA uses OAuth through `account.premierleague.com` and stores
 the resulting JWT `access_token` in `localStorage` (not as a cookie). The FPL
-API accepts the token via `Authorization: Bearer <jwt>`. If `IsLoggedIn` keeps
-returning `false` even after loading cookies, extract the token instead:
+API accepts the token via the non-standard header **`x-api-authorization`** (not
+the usual `Authorization`). If `IsLoggedIn` keeps returning `false` even after
+loading cookies, use `--bearer` instead.
 
 1. Log into [fantasy.premierleague.com](https://fantasy.premierleague.com) in your browser
 2. DevTools → **Application** → **Local Storage** → `https://fantasy.premierleague.com`
-3. Look for keys with a long dot-separated JWT value. Likely candidates:
-   - `access_token`
-   - `pl_token`
-   - `id_token`
-   - Anything containing `eyJ...` (JWT prefix)
-4. Copy the value and pass it:
+3. Find the key named `oidc.user:https://account.premierleague.com/as:<client_id>`.
+   Its value is a JSON object with an `access_token` field.
+4. Pass either:
+   - The **raw JWT string** (`eyJhbGc...`, copied from `access_token` field), OR
+   - The **full oidc.user JSON** (the tool extracts `access_token` automatically)
 
 ```
 fpl-picker apply --bearer "eyJhbGciOi..."
 ```
 
-or save to a file (perm 600):
+or save to a file (perm 600) — JSON form also works:
 
 ```bash
+# Raw JWT
 echo "eyJhbGciOi..." > ~/.fpl-bearer.txt
-chmod 600 ~/.fpl-bearer.txt
-fpl-picker apply --bearer-file ~/.fpl-bearer.txt
+# OR full JSON from localStorage
+cat > ~/.fpl-bearer.json <<'EOF'
+{"access_token":"eyJ...","expires_at":1785794442,...}
+EOF
+chmod 600 ~/.fpl-bearer.json
+fpl-picker apply --bearer-file ~/.fpl-bearer.json
 ```
 
-The token typically expires in ~1 hour; you'll need to re-export it. If `--cookies`
-or `--bearer` both work for you, prefer whichever lasts longer.
+The access token expires in ~11 hours (per the JWT `exp` claim). You'll need
+to re-export from your browser when it does. The `refresh_token` field in the
+same JSON object can be used to renew — this tool does not yet auto-refresh
+(planned for a future iteration).
 
 ### Sample Output
 

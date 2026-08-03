@@ -20,7 +20,7 @@ type AuthClient struct {
 	http    *http.Client
 	baseURL string // "https://fantasy.premierleague.com"
 	ctx     context.Context
-	bearer  string // optional OAuth/JWT access_token (Authorization: Bearer)
+	bearer  string // optional OAuth/JWT access_token (x-api-authorization: Bearer)
 }
 
 // loginURL is the form-encoded POST endpoint on the accounts host.
@@ -218,32 +218,52 @@ func (c *AuthClient) LoadCookies(headerValue string) (int, error) {
 }
 
 // LoadBearer sets an OAuth/JWT bearer token used for all subsequent requests.
-// The token is sent via the Authorization header.
+// The token is sent via the x-api-authorization header.
 //
 // The 2026-era FPL web app uses an OAuth flow through account.premierleague.com
 // and stores the resulting access_token in localStorage (not as a cookie). The
 // API at fantasy.premierleague.com accepts the token via
-// `Authorization: Bearer <jwt>` for read AND write endpoints.
+// `x-api-authorization: Bearer <jwt>` for read AND write endpoints.
+//
+// The input may be either:
+//   - A raw JWT string (the long eyJ... dot-separated value copied from
+//     localStorage), OR
+//   - The full oidc.user JSON object from localStorage (which contains
+//     `access_token` as a nested field). When the input starts with `{`,
+//     this function extracts the access_token automatically.
 //
 // Extract the token from your browser:
 //  1. Log into fantasy.premierleague.com in Chrome/Firefox.
 //  2. DevTools → Application → Local Storage → https://fantasy.premierleague.com
-//  3. Find the key that holds the JWT (commonly `access_token`, `pl_token`,
-//     or another name the SPA picks — try each value that's a long
-//     dot-separated string).
-//  4. Pass it via --bearer or --bearer-file.
+//  3. Find a key whose value is JSON containing "access_token". The typical
+//     name is `oidc.user:https://account.premierleague.com/as:<client_id>`.
+//  4. Pass either the raw JWT value OR the full JSON via --bearer or --bearer-file.
 //
-// Returns an error if the token is empty.
+// Returns an error if the token is empty or if JSON input lacks access_token.
 func (c *AuthClient) LoadBearer(token string) error {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return errors.New("bearer token is empty")
 	}
+
+	// If the input looks like JSON (oidc.user shape), extract access_token.
+	if strings.HasPrefix(token, "{") {
+		var envelope struct {
+			AccessToken string `json:"access_token"`
+		}
+		if err := json.Unmarshal([]byte(token), &envelope); err != nil {
+			return fmt.Errorf("bearer JSON parse: %w", err)
+		}
+		if envelope.AccessToken == "" {
+			return errors.New("bearer JSON has no access_token field")
+		}
+		token = envelope.AccessToken
+	}
+
 	c.bearer = token
 	return nil
 }
 
-// HasBearer reports whether a bearer token has been loaded.
 // HasBearer reports whether a bearer token has been loaded.
 func (c *AuthClient) HasBearer() bool { return c.bearer != "" }
 
@@ -311,7 +331,7 @@ func (c *AuthClient) getJSON(path string, target any) error {
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "application/json")
 	if c.bearer != "" {
-		req.Header.Set("Authorization", "Bearer "+c.bearer)
+		req.Header.Set("x-api-authorization", "Bearer "+c.bearer)
 	}
 
 	resp, err := c.http.Do(req)
@@ -354,7 +374,7 @@ func (c *AuthClient) doPOST(path string, body any) (*http.Response, error) {
 	req.Header.Set("Origin", c.baseURL)
 	req.Header.Set("Referer", c.baseURL+"/")
 	if c.bearer != "" {
-		req.Header.Set("Authorization", "Bearer "+c.bearer)
+		req.Header.Set("x-api-authorization", "Bearer "+c.bearer)
 	}
 
 	return c.http.Do(req)
