@@ -85,56 +85,29 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 			if req != nil {
 				spent, verr := PreviewPointsHits(ctx, client, *req)
 				if verr != nil {
-					// Validation failed — re-fetch + re-plan once.
-					// FPL's validation is lenient; stale `current` can
-					// pass validate then fail at commit time.
-					if opts.Apply {
-						freshCurrent, ferr := client.GetMyTeam(entryID)
-						if ferr == nil {
-							resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
-							suggestions = resuggested
-							res.TransfersPlanned = len(suggestions)
-							req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
-							if req != nil {
-								spent, verr = PreviewPointsHits(ctx, client, *req)
-							}
-						}
+					if te := api.AsTransferError(verr); te != nil {
+						return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
 					}
-					if verr != nil {
-						if te := api.AsTransferError(verr); te != nil {
-							return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
-						}
-						return res, fmt.Errorf("apply: transfer validation error: %w", verr)
-					}
+					return res, fmt.Errorf("apply: transfer validation error: %w", verr)
 				}
 				res.PointsHits = spent
 				if opts.Apply {
+					// FPL's /api/my-team/ cache is very sticky: two
+					// consecutive fetches can return the same stale view.
+					// To survive this, re-fetch + re-plan RIGHT BEFORE
+					// commit, not just on failure. Adds one GET per apply.
+					freshCurrent, ferr := client.GetMyTeam(entryID)
+					if ferr == nil {
+						resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
+						suggestions = resuggested
+						res.TransfersPlanned = len(suggestions)
+						req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
+					}
 					cerr := client.CommitTransfers(*req)
 					if cerr != nil {
-						// Commit failed — FPL's commit is stricter than its
-						// validation. Re-fetch, re-plan, re-validate, and
-						// commit once more.
-						freshCurrent, ferr := client.GetMyTeam(entryID)
-						if ferr == nil {
-							resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
-							suggestions = resuggested
-							res.TransfersPlanned = len(suggestions)
-							req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
-							if req != nil {
-								if _, verr2 := PreviewPointsHits(ctx, client, *req); verr2 == nil {
-									cerr = client.CommitTransfers(*req)
-									if cerr == nil {
-										res.TransfersMade = len(suggestions)
-									}
-								}
-							}
-						}
-						if cerr != nil {
-							return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
-						}
-					} else {
-						res.TransfersMade = len(suggestions)
+						return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
 					}
+					res.TransfersMade = len(suggestions)
 				}
 			}
 		}
