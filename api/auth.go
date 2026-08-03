@@ -30,9 +30,10 @@ const loginURL = "https://users.premierleague.com/accounts/login/"
 // loginRedirectURI is the redirect target FPL inspects for state=success|fail.
 const loginRedirectURI = "https://fantasy.premierleague.com/a/login"
 
-// userAgent matches the FPL Android app's UA — avoids 403 bot detection at the
-// Fastly edge. Verified in fpl-api.md §3.4.
-const userAgent = "Dalvik/2.1.0 (Linux; U; Android 5.1; PRO 5 Build/LMY47D)"
+// userAgent is a desktop browser UA — required by the 2026-era FPL edge to
+// accept authenticated API calls. The historical Dalvik Android-app UA no
+// longer passes Fastly bot detection for the OAuth-protected endpoints.
+const userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
 
 // ErrAuthFailed is returned when the login redirect carries state=fail or the
 // response status indicates a blocked/forbidden outcome.
@@ -356,6 +357,7 @@ func (c *AuthClient) getJSON(path string, target any) error {
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("x-api-language", "en")
 	if c.bearer != "" {
 		req.Header.Set("x-api-authorization", "Bearer "+c.bearer)
 	}
@@ -397,6 +399,7 @@ func (c *AuthClient) doPOST(path string, body any) (*http.Response, error) {
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("x-api-language", "en")
 	req.Header.Set("Origin", c.baseURL)
 	req.Header.Set("Referer", c.baseURL+"/")
 	if c.bearer != "" {
