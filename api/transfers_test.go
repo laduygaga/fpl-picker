@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -142,6 +143,33 @@ func TestValidateTransfersErrorWithSpentPoints(t *testing.T) {
 	}
 	if len(te.NonFormErrors) != 1 || !contains(te.NonFormErrors[0], "enough funds") {
 		t.Errorf("NonFormErrors = %v", te.NonFormErrors)
+	}
+}
+
+func TestValidateTransfersStructuredNonFieldError(t *testing.T) {
+	ts := &transferTestServer{
+		statusCode: http.StatusBadRequest,
+		body:       `{"non_field_errors":[{"code":"transfer_team_limit_reached","message":"You cannot have more than 3 players from the same team."}],"spent_points":4}`,
+	}
+	srv := newTransferServer(t, ts)
+	client := newMyTeamClient(srv.URL)
+
+	spent, err := client.ValidateTransfers(sampleTransferRequest())
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if spent != 4 {
+		t.Errorf("spent = %d, want 4", spent)
+	}
+	te := AsTransferError(err)
+	if te == nil {
+		t.Fatalf("err is not *TransferError: %v", err)
+	}
+	if !te.HasCode("transfer_team_limit_reached") {
+		t.Fatal("error code transfer_team_limit_reached was not decoded")
+	}
+	if !strings.Contains(err.Error(), "status 400") || !strings.Contains(err.Error(), "more than 3 players") {
+		t.Errorf("error = %q, want existing status text and decoded message", err)
 	}
 }
 

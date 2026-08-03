@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 )
 
 // Transfer describes a single player swap in a TransferRequest.
@@ -37,17 +38,71 @@ type TransferRequest struct {
 // useful for surfacing a preview before re-issuing confirmed=true.
 type TransferError struct {
 	NonFormErrors []string `json:"non_form_errors"`
-	SpentPoints   int      `json:"spent_points"`
-	Entry         int      `json:"entry,omitempty"`
+	fieldErrors   []transferErrorDetail
+	SpentPoints   int `json:"spent_points"`
+	Entry         int `json:"entry,omitempty"`
+}
+
+type transferErrorDetail struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func (t *TransferError) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		NonFormErrors  []string        `json:"non_form_errors"`
+		NonFieldErrors json.RawMessage `json:"non_field_errors"`
+		SpentPoints    int             `json:"spent_points"`
+		Entry          int             `json:"entry,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	t.NonFormErrors = raw.NonFormErrors
+	t.fieldErrors = nil
+	t.SpentPoints = raw.SpentPoints
+	t.Entry = raw.Entry
+	if len(raw.NonFieldErrors) == 0 || string(raw.NonFieldErrors) == "null" {
+		return nil
+	}
+	if err := json.Unmarshal(raw.NonFieldErrors, &t.fieldErrors); err == nil {
+		return nil
+	}
+	var messages []string
+	if err := json.Unmarshal(raw.NonFieldErrors, &messages); err != nil {
+		return fmt.Errorf("decode non_field_errors: %w", err)
+	}
+	t.NonFormErrors = append(t.NonFormErrors, messages...)
+	return nil
+}
+
+func (t *TransferError) HasCode(code string) bool {
+	for _, detail := range t.fieldErrors {
+		if detail.Code == code {
+			return true
+		}
+	}
+	return slices.Contains(t.NonFormErrors, code)
+}
+
+func (t *TransferError) hasErrors() bool {
+	return len(t.NonFormErrors) > 0 || len(t.fieldErrors) > 0
 }
 
 // Error implements the error interface for TransferError.
 func (t *TransferError) Error() string {
-	if len(t.NonFormErrors) == 0 {
+	message := ""
+	if len(t.NonFormErrors) > 0 {
+		message = t.NonFormErrors[0]
+	} else if len(t.fieldErrors) > 0 {
+		message = t.fieldErrors[0].Message
+	}
+	if message == "" {
 		return fmt.Sprintf("/api/transfers/: spent %d points", t.SpentPoints)
 	}
 	return fmt.Sprintf("/api/transfers/: %s (would spend %d points)",
-		t.NonFormErrors[0], t.SpentPoints)
+		message, t.SpentPoints)
 }
 
 // transferPath is the unique endpoint for both validation and commit.
@@ -89,7 +144,7 @@ func alignChip(chip *string) (*string, bool, bool) {
 // postTransfer issues the POST and parses the response according to wantJSON.
 //   - wantJSON=true (validation): expect either an empty 200 (no Content-Type
 //     quirk on /api/transfers/, see fpl-api.md §9.1) or a JSON body with
-//     non_form_errors / spent_points.
+//     non_form_errors or non_field_errors / spent_points.
 //   - wantJSON=false (commit): only HTTP 200 with empty body counts as
 //     success; any JSON body is treated as a TransferError.
 //
@@ -108,7 +163,12 @@ func (c *AuthClient) postTransfer(req TransferRequest, wantJSON bool) (int, erro
 		return 0, fmt.Errorf("%w: 403 from /api/transfers/ — session invalid", ErrAuthFailed)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("/api/transfers/ status %d: %s", resp.StatusCode, string(body))
+		message := fmt.Sprintf("/api/transfers/ status %d: %s", resp.StatusCode, string(body))
+		var terr TransferError
+		if err := json.Unmarshal(body, &terr); err == nil && terr.hasErrors() {
+			return terr.SpentPoints, fmt.Errorf("%s: %w", message, &terr)
+		}
+		return 0, fmt.Errorf("%s", message)
 	}
 
 	// Empty body — could be a successful validation or commit; the server
@@ -125,7 +185,7 @@ func (c *AuthClient) postTransfer(req TransferRequest, wantJSON bool) (int, erro
 	if err := json.Unmarshal(body, &terr); err != nil {
 		return 0, fmt.Errorf("/api/transfers/ returned non-JSON body: %q", string(body))
 	}
-	if len(terr.NonFormErrors) > 0 {
+	if terr.hasErrors() {
 		return terr.SpentPoints, &terr
 	}
 	if wantJSON {
