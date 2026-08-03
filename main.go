@@ -136,6 +136,8 @@ func applyMain(args []string) {
 	freshFlag := fs.Bool("fresh", false, "Bypass the FPL API cache")
 	cookiesFlag := fs.String("cookies", "", "Cookie header value from a logged-in browser session (e.g. 'pl_profile=...; csrftoken=...'). Skips the login flow.")
 	cookiesFileFlag := fs.String("cookies-file", "", "Path to a file containing cookies (same format as --cookies)")
+	bearerFlag := fs.String("bearer", "", "OAuth/JWT access token from localStorage (sent as Authorization: Bearer). Skips the login flow.")
+	bearerFileFlag := fs.String("bearer-file", "", "Path to a file containing the bearer token (whitespace-trimmed)")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -212,6 +214,23 @@ func applyMain(args []string) {
 
 	client := api.NewAuthClient(ctx)
 
+	bearerSource := *bearerFlag
+	if bearerSource == "" && *bearerFileFlag != "" {
+		data, err := os.ReadFile(*bearerFileFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Could not read bearer file: %v\n", err)
+			os.Exit(1)
+		}
+		bearerSource = string(data)
+	}
+	if bearerSource != "" {
+		if err := client.LoadBearer(bearerSource); err != nil {
+			fmt.Fprintf(os.Stderr, "Could not load bearer token: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "Loaded bearer token from %s.\n", cookieLabel(*bearerFlag, *bearerFileFlag))
+	}
+
 	cookieSource := *cookiesFlag
 	if cookieSource == "" && *cookiesFileFlag != "" {
 		data, err := os.ReadFile(*cookiesFileFlag)
@@ -228,9 +247,12 @@ func applyMain(args []string) {
 			os.Exit(1)
 		}
 		fmt.Fprintf(os.Stderr, "Loaded %d cookie(s) from %s.\n", n, cookieLabel(*cookiesFlag, *cookiesFileFlag))
+	}
+
+	if client.HasBearer() || cookieSource != "" {
 		ok, err := client.IsLoggedIn()
 		if err != nil || !ok {
-			fmt.Fprintf(os.Stderr, "Cookies invalid or expired (IsLoggedIn=%v err=%v).\n", ok, err)
+			fmt.Fprintf(os.Stderr, "Auth invalid or expired (IsLoggedIn=%v err=%v).\n", ok, err)
 			os.Exit(1)
 		}
 	} else {

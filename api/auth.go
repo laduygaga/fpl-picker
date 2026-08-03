@@ -20,6 +20,7 @@ type AuthClient struct {
 	http    *http.Client
 	baseURL string // "https://fantasy.premierleague.com"
 	ctx     context.Context
+	bearer  string // optional OAuth/JWT access_token (Authorization: Bearer)
 }
 
 // loginURL is the form-encoded POST endpoint on the accounts host.
@@ -216,6 +217,36 @@ func (c *AuthClient) LoadCookies(headerValue string) (int, error) {
 	return len(cookies), nil
 }
 
+// LoadBearer sets an OAuth/JWT bearer token used for all subsequent requests.
+// The token is sent via the Authorization header.
+//
+// The 2026-era FPL web app uses an OAuth flow through account.premierleague.com
+// and stores the resulting access_token in localStorage (not as a cookie). The
+// API at fantasy.premierleague.com accepts the token via
+// `Authorization: Bearer <jwt>` for read AND write endpoints.
+//
+// Extract the token from your browser:
+//  1. Log into fantasy.premierleague.com in Chrome/Firefox.
+//  2. DevTools → Application → Local Storage → https://fantasy.premierleague.com
+//  3. Find the key that holds the JWT (commonly `access_token`, `pl_token`,
+//     or another name the SPA picks — try each value that's a long
+//     dot-separated string).
+//  4. Pass it via --bearer or --bearer-file.
+//
+// Returns an error if the token is empty.
+func (c *AuthClient) LoadBearer(token string) error {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return errors.New("bearer token is empty")
+	}
+	c.bearer = token
+	return nil
+}
+
+// HasBearer reports whether a bearer token has been loaded.
+// HasBearer reports whether a bearer token has been loaded.
+func (c *AuthClient) HasBearer() bool { return c.bearer != "" }
+
 // Me is the parsed /api/me/ response. The "entry" field is the user's team_id.
 type Me struct {
 	Entry json.Number `json:"entry"` // team_id, parsed to int
@@ -279,6 +310,9 @@ func (c *AuthClient) getJSON(path string, target any) error {
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "application/json")
+	if c.bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+c.bearer)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -319,6 +353,9 @@ func (c *AuthClient) doPOST(path string, body any) (*http.Response, error) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Origin", c.baseURL)
 	req.Header.Set("Referer", c.baseURL+"/")
+	if c.bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+c.bearer)
+	}
 
 	return c.http.Do(req)
 }
