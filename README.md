@@ -206,6 +206,25 @@ Limit points hits to 8 (i.e. max 2 transfers beyond free):
 fpl-picker apply --max-hits 8 --apply
 ```
 
+### Transfer validation and stale squad state
+
+The apply flow enforces FPL's maximum of three players from one Premier League
+team when team data is available locally. It still sends the transfer bundle to
+FPL for authoritative validation.
+
+FPL may briefly return a stale `/api/my-team/` response after transfers are
+committed. When FPL reports `transfer_team_limit_reached`, the command refetches
+the current squad, replans the transfers, and retries validation with bounded
+exponential backoff. The same refresh-and-replan behavior protects the live
+`--apply` path before committing transfers. Other validation errors are
+reported immediately because retrying them will not change the underlying
+request.
+
+If you run another formula immediately after a successful apply and see a
+transfer error referring to a player already picked or no longer in the team,
+wait a few seconds and rerun the command. A dry-run without `--apply` is safe for
+checking the refreshed transfer plan first.
+
 ### Security notes
 
 - Credentials are NEVER logged or written to disk in plaintext.
