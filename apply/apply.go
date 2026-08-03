@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"fpl-picker/api"
 	"fpl-picker/model"
@@ -97,31 +98,44 @@ func Run(ctx context.Context, client *api.AuthClient, entryID int, current *api.
 					res.PointsHits = spent
 				} else {
 					// Apply path: re-fetch + re-plan + validate + commit.
-					// FPL's /api/my-team/ cache is very sticky; two
-					// consecutive GETs can return the same stale view.
-					// The initial plan may be based on stale data, so we
-					// always re-plan right before posting.
-					freshCurrent, ferr := client.GetMyTeam(entryID)
-					if ferr == nil {
-						resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
-						suggestions = resuggested
-						res.TransfersPlanned = len(suggestions)
-						req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
-					}
-					if req != nil {
-						spent, verr := PreviewPointsHits(ctx, client, *req)
-						if verr != nil {
-							if te := api.AsTransferError(verr); te != nil {
-								return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
+					// FPL's /api/my-team/ cache can return data that's stale
+					// by 5+ seconds, so re-fetch alone is not enough —
+					// also retry the commit a few times with backoff to let
+					// the cache catch up.
+					const maxAttempts = 5
+					backoff := 1 * time.Second
+					for attempt := 1; attempt <= maxAttempts; attempt++ {
+						freshCurrent, ferr := client.GetMyTeam(entryID)
+						if ferr == nil {
+							resuggested := PlanTransfers(freshCurrent, optimal, opts.MaxHits)
+							suggestions = resuggested
+							res.TransfersPlanned = len(suggestions)
+							req = BuildTransferRequest(entryID, 1, suggestions, opts.Chip)
+						}
+						if req != nil {
+							spent, verr := PreviewPointsHits(ctx, client, *req)
+							if verr == nil {
+								res.PointsHits = spent
+								cerr := client.CommitTransfers(*req)
+								if cerr == nil {
+									res.TransfersMade = len(suggestions)
+									break
+								}
+								if attempt == maxAttempts {
+									return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
+								}
+								fmt.Fprintf(os.Stderr, "warning: commit attempt %d failed (%v); retrying in %s\n", attempt, cerr, backoff)
+							} else if attempt == maxAttempts {
+								if te := api.AsTransferError(verr); te != nil {
+									return res, fmt.Errorf("apply: transfer validation failed: %w", verr)
+								}
+								return res, fmt.Errorf("apply: transfer validation error: %w", verr)
+							} else {
+								fmt.Fprintf(os.Stderr, "warning: validate attempt %d failed (%v); retrying in %s\n", attempt, verr, backoff)
 							}
-							return res, fmt.Errorf("apply: transfer validation error: %w", verr)
 						}
-						res.PointsHits = spent
-						cerr := client.CommitTransfers(*req)
-						if cerr != nil {
-							return res, fmt.Errorf("apply: commit transfers failed: %w", cerr)
-						}
-						res.TransfersMade = len(suggestions)
+						time.Sleep(backoff)
+						backoff *= 2
 					}
 				}
 			}
