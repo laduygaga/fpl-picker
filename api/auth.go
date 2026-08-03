@@ -52,6 +52,15 @@ func NewAuthClient(ctx context.Context) *AuthClient {
 	}
 }
 
+// SetBaseURL overrides the API base URL. Used by tests to point at a local
+// httptest server; production callers should leave it at the default FPL host.
+func (c *AuthClient) SetBaseURL(u string) { c.baseURL = u }
+
+// SetTransport overrides the HTTP transport. Used by tests to install a
+// host-rewriting transport; production callers should leave the default
+// http.Transport in place.
+func (c *AuthClient) SetTransport(t http.RoundTripper) { c.http.Transport = t }
+
 // loginState carries the redirect target captured by captureLoginRedirect.
 // It is set during the redirect chain and read by Login immediately after
 // the final response is received.
