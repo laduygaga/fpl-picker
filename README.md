@@ -138,6 +138,82 @@ Force fresh data (bypasses the 1-hour cache):
 fpl-picker -budget 102.1 -fresh
 ```
 
+## Apply Command (live FPL integration)
+
+The `apply` subcommand picks a squad AND posts it to your live FPL team.
+
+⚠️ **Security**: This authenticates with your FPL account. The default is dry-run
+(diff only, no posts). Real posts require `--apply`. Credentials are prompted
+each run unless cached.
+
+### Usage
+
+```
+fpl-picker apply [flags]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--email` | (prompt) | FPL login email |
+| `--password` | (prompt) | FPL login password |
+| `--passphrase` | (prompt) | Passphrase for the encrypted credential cache |
+| `--save-cache` | false | Save credentials encrypted to `~/.config/fpl-picker/.cached` (passphrase-protected) |
+| `--clear-cache` | false | Delete the credential cache and exit |
+| `--apply` | false | Actually post changes (default: dry-run) |
+| `--chip` | "" | Activate chip: `wildcard`|`freehit`|`bboost`|`3xc` |
+| `--no-transfers` | false | Skip transfer planning (lineup only) |
+| `--no-lineup` | false | Skip lineup posting (transfers only) |
+| `--max-hits` | 4 | Max points hits to accept from transfers |
+| `--gw` | auto | Gameweek for display; apply backend targets its detected next gameweek |
+| `--formula` | `1` | Scoring formula (passes through to scorer) |
+| `--fresh` | false | Bypass FPL API cache |
+
+### Examples
+
+Dry-run (no posts, safe to run anytime):
+
+```
+fpl-picker apply
+```
+
+Save creds for future runs (passphrase prompted):
+
+```
+fpl-picker apply --save-cache
+```
+
+Apply for real (careful!):
+
+```
+fpl-picker apply --apply
+```
+
+Use a Wildcard chip:
+
+```
+fpl-picker apply --chip wildcard --apply
+```
+
+Limit points hits to 8 (i.e. max 2 transfers beyond free):
+
+```
+fpl-picker apply --max-hits 8 --apply
+```
+
+### Security notes
+
+- Credentials are NEVER logged or written to disk in plaintext.
+- When `--save-cache` is set, the cache is encrypted with AES-256-GCM using
+  a passphrase-derived key (PBKDF2-HMAC-SHA256, 100k iterations).
+- The cache file is at `~/.config/fpl-picker/.cached` with `0600` perms.
+- For maximum security, omit `--save-cache` and re-enter your password each run.
+- A `User-Agent` matching the official FPL Android app is sent to avoid login
+  403s — this is necessary because FPL blocks some non-browser UAs.
+- Cookie storage is in-process only (Go's `net/http/cookiejar`). No cookies
+  are persisted to disk by this tool.
+
 ### Sample Output
 
 ```
