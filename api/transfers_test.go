@@ -192,7 +192,7 @@ func TestTransferRequestChipAlignment(t *testing.T) {
 	client := newMyTeamClient(srv.URL)
 
 	req := sampleTransferRequest()
-	req.Chip = chipPtr("wildcard")
+	req.Chip = ChipPtr("wildcard")
 	if _, err := client.ValidateTransfers(req); err != nil {
 		t.Fatalf("ValidateTransfers: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestTransferRequestChipStrippedWhenUnknown(t *testing.T) {
 	client := newMyTeamClient(srv.URL)
 
 	req := sampleTransferRequest()
-	req.Chip = chipPtr("bboost") // not valid for /api/transfers/
+	req.Chip = ChipPtr("bboost") // not valid for /api/transfers/
 	if _, err := client.ValidateTransfers(req); err != nil {
 		t.Fatalf("ValidateTransfers: %v", err)
 	}

@@ -165,7 +165,7 @@ func TestUpdateLineupBuildsBody(t *testing.T) {
 			{Element: 254, Position: 12}, {Element: 295, Position: 13},
 			{Element: 346, Position: 14}, {Element: 54, Position: 15},
 		},
-		Chip: chipPtr("wildcard"),
+		Chip: ChipPtr("wildcard"),
 	}
 
 	if err := client.UpdateLineup(3808385, update); err != nil {
@@ -204,7 +204,7 @@ func TestUpdateLineupStripsUnknownChip(t *testing.T) {
 	srv := newMyTeamServer(t, ts)
 	client := newMyTeamClient(srv.URL)
 
-	update := LineupUpdate{Picks: make([]Pick, 15), Chip: chipPtr("not-a-real-chip")}
+	update := LineupUpdate{Picks: make([]Pick, 15), Chip: ChipPtr("not-a-real-chip")}
 	if err := client.UpdateLineup(3808385, update); err != nil {
 		t.Fatalf("UpdateLineup: %v", err)
 	}

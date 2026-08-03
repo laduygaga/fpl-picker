@@ -59,7 +59,7 @@ const transferPath = "/api/transfers/"
 // transfer bundle was rejected.
 func (c *AuthClient) ValidateTransfers(req TransferRequest) (int, error) {
 	req.Confirmed = false
-	req.Chip, req.Wildcard, req.Freehit = alignChip(req.Chip, req.Wildcard, req.Freehit)
+	req.Chip, req.Wildcard, req.Freehit = alignChip(req.Chip)
 	return c.postTransfer(req, true /* wantJSON */)
 }
 
@@ -67,7 +67,7 @@ func (c *AuthClient) ValidateTransfers(req TransferRequest) (int, error) {
 // *TransferError on validation failure, or another wrapped error otherwise.
 func (c *AuthClient) CommitTransfers(req TransferRequest) error {
 	req.Confirmed = true
-	req.Chip, req.Wildcard, req.Freehit = alignChip(req.Chip, req.Wildcard, req.Freehit)
+	req.Chip, req.Wildcard, req.Freehit = alignChip(req.Chip)
 	_, err := c.postTransfer(req, false /* wantJSON */)
 	return err
 }
@@ -75,9 +75,8 @@ func (c *AuthClient) CommitTransfers(req TransferRequest) error {
 // alignChip keeps the three chip fields consistent — Chip is the canonical
 // name, Wildcard/Freehit are boolean flags that mirror it for the server.
 // Anything outside the allowed set normalises to no-chip.
-func alignChip(chip *string, wild, free bool) (*string, bool, bool) {
-	name := deref(chip)
-	switch name {
+func alignChip(chip *string) (*string, bool, bool) {
+	switch deref(chip) {
 	case "wildcard":
 		return chip, true, false
 	case "freehit":

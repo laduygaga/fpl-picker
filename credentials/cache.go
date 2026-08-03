@@ -55,12 +55,6 @@ var (
 	ErrCacheMissing = errors.New("credentials: cache file not found")
 )
 
-// Cached holds the decrypted credentials.
-type Cached struct {
-	Email    string
-	Password string
-}
-
 type envelope struct {
 	V     int    `json:"v"`
 	KDF   string `json:"kdf"`
@@ -242,31 +236,27 @@ func Save(email, password, passphrase string) error {
 // Load reads and decrypts the cache file at CachePath. Returns ErrWrongPassphrase
 // when decryption fails (GCM tag mismatch), or ErrCacheMissing when the file
 // does not exist.
-func Load(passphrase string) (Cached, error) {
+func Load(passphrase string) (string, string, error) {
 	path := CachePath
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return Cached{}, ErrCacheMissing
+			return "", "", ErrCacheMissing
 		}
-		return Cached{}, fmt.Errorf("read cache: %w", err)
+		return "", "", fmt.Errorf("read cache: %w", err)
 	}
 
 	plain, err := decrypt(string(data), passphrase)
 	if err != nil {
-		return Cached{}, err
+		return "", "", err
 	}
 
-	// Format: "<email>\n<password>"
 	for i := 0; i < len(plain); i++ {
 		if plain[i] == '\n' {
-			return Cached{
-				Email:    plain[:i],
-				Password: plain[i+1:],
-			}, nil
+			return plain[:i], plain[i+1:], nil
 		}
 	}
-	return Cached{}, errors.New("credentials: malformed cache plaintext")
+	return "", "", errors.New("credentials: malformed cache plaintext")
 }
 
 // Exists returns true when the cache file is present on disk.

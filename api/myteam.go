@@ -122,9 +122,9 @@ func (c *AuthClient) UpdateLineup(teamID int, update LineupUpdate) error {
 	return fmt.Errorf("lineup update failed: %d %s", resp.StatusCode, string(body))
 }
 
-// chipPtr returns a pointer to its string arg. Tiny helper so callers can
-// say Chip: chipPtr("wildcard") when constructing a LineupUpdate.
-func chipPtr(s string) *string { return &s }
+// ChipPtr returns a pointer to its string arg. Tiny helper so callers can
+// say Chip: api.ChipPtr("wildcard") when constructing a LineupUpdate.
+func ChipPtr(s string) *string { return &s }
 
 // deref returns the empty string when s is nil; otherwise the pointed-to value.
 func deref(s *string) string {

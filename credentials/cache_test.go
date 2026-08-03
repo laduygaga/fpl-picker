@@ -32,15 +32,15 @@ func TestSaveLoadRoundtrip(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	got, err := Load(passphrase)
+	gotEmail, gotPassword, err := Load(passphrase)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got.Email != email {
-		t.Errorf("Email = %q, want %q", got.Email, email)
+	if gotEmail != email {
+		t.Errorf("Email = %q, want %q", gotEmail, email)
 	}
-	if got.Password != password {
-		t.Errorf("Password = %q, want %q", got.Password, password)
+	if gotPassword != password {
+		t.Errorf("Password = %q, want %q", gotPassword, password)
 	}
 }
 
@@ -51,7 +51,7 @@ func TestLoadWrongPassphrase(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	_, err := Load("wrong-pass")
+	_, _, err := Load("wrong-pass")
 	if !errors.Is(err, ErrWrongPassphrase) {
 		t.Fatalf("Load wrong passphrase: err = %v, want ErrWrongPassphrase", err)
 	}
@@ -63,7 +63,7 @@ func TestLoadWrongPassphrase(t *testing.T) {
 func TestLoadMissingFile(t *testing.T) {
 	useTempCachePath(t)
 
-	_, err := Load("any")
+	_, _, err := Load("any")
 	if !errors.Is(err, ErrCacheMissing) {
 		t.Fatalf("Load missing: err = %v, want ErrCacheMissing", err)
 	}
@@ -123,12 +123,12 @@ func TestSaveOverwritesExisting(t *testing.T) {
 	if err := Save("c@d", "second", "pp"); err != nil {
 		t.Fatalf("Save2: %v", err)
 	}
-	got, err := Load("pp")
+	gotEmail, gotPassword, err := Load("pp")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got.Email != "c@d" || got.Password != "second" {
-		t.Errorf("got %+v, want c@d/second", got)
+	if gotEmail != "c@d" || gotPassword != "second" {
+		t.Errorf("got %s/%s, want c@d/second", gotEmail, gotPassword)
 	}
 }
 
@@ -144,7 +144,7 @@ func TestCorruptFileFails(t *testing.T) {
 	if err := os.WriteFile(path, []byte("not a json envelope"), 0o600); err != nil {
 		t.Fatalf("write corrupt: %v", err)
 	}
-	_, err := Load("anything")
+	_, _, err := Load("anything")
 	if err == nil || errors.Is(err, ErrWrongPassphrase) {
 		t.Errorf("corrupt file should return parse error, got %v", err)
 	}
@@ -152,12 +152,11 @@ func TestCorruptFileFails(t *testing.T) {
 
 func TestVersionMismatch(t *testing.T) {
 	path := useTempCachePath(t)
-	// Hand-craft an envelope with an unsupported version.
 	bad := `{"v":99,"kdf":"pbkdf2-sha256","iter":100000,"salt":"AAAA","nonce":"BBBB","ct":"CCCC"}`
 	if err := os.WriteFile(path, []byte(bad), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	_, err := Load("pp")
+	_, _, err := Load("pp")
 	if err == nil || !strings.Contains(err.Error(), "unsupported cache version") {
 		t.Errorf("got %v, want unsupported cache version error", err)
 	}
@@ -169,7 +168,7 @@ func TestUnknownKDF(t *testing.T) {
 	if err := os.WriteFile(path, []byte(bad), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	_, err := Load("pp")
+	_, _, err := Load("pp")
 	if err == nil || !strings.Contains(err.Error(), "unsupported KDF") {
 		t.Errorf("got %v, want unsupported KDF error", err)
 	}
