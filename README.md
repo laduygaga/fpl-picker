@@ -194,6 +194,12 @@ Apply for real (careful!):
 fpl-picker apply --apply
 ```
 
+Apply with a bearer token file and the balanced formula:
+
+```
+./fpl-picker apply --bearer-file ~/.fpl-bearer-nnd58xe.txt --formula 1 --apply
+```
+
 Use a Wildcard chip:
 
 ```
