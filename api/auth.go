@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -241,6 +242,8 @@ func (c *AuthClient) LoadCookies(headerValue string) (int, error) {
 //
 // Returns an error if the token is empty or if JSON input lacks access_token.
 func (c *AuthClient) LoadBearer(token string) error {
+	// Strip UTF-8 BOM if present (some editors prepend it).
+	token = strings.TrimPrefix(token, "\ufeff")
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return errors.New("bearer token is empty")
@@ -258,9 +261,32 @@ func (c *AuthClient) LoadBearer(token string) error {
 			return errors.New("bearer JSON has no access_token field")
 		}
 		token = envelope.AccessToken
+		token = strings.TrimPrefix(token, "\ufeff")
+		token = strings.TrimSpace(token)
 	}
 
-	c.bearer = token
+	// JWTs are base64url: A-Z, a-z, 0-9, -, _, with . separators. Anything else
+	// (newlines, BOMs, accidental paste fragments) corrupts the header and FPL
+	// returns 401 with a misleading "utf-8 codec" error. Strip defensively.
+	cleaned := make([]rune, 0, len(token))
+	for _, r := range token {
+		switch {
+		case r >= 'A' && r <= 'Z',
+			r >= 'a' && r <= 'z',
+			r >= '0' && r <= '9',
+			r == '-', r == '_', r == '.':
+			cleaned = append(cleaned, r)
+		}
+	}
+	if len(cleaned) == 0 {
+		return errors.New("bearer token contains no JWT characters")
+	}
+	if len(cleaned) < len(token) {
+		stripped := len(token) - len(cleaned)
+		fmt.Fprintf(os.Stderr, "warning: stripped %d non-JWT character(s) from bearer token\n", stripped)
+	}
+
+	c.bearer = string(cleaned)
 	return nil
 }
 

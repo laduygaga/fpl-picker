@@ -172,6 +172,10 @@ func applyMain(args []string) {
 	scanner := bufio.NewScanner(os.Stdin)
 	email := strings.TrimSpace(*emailFlag)
 	password := *passwordFlag
+
+	hasAltAuth := *bearerFlag != "" || *bearerFileFlag != "" ||
+		*cookiesFlag != "" || *cookiesFileFlag != ""
+
 	if email != "" && password != "" && *saveCacheFlag {
 		passphrase := *passphraseFlag
 		if passphrase == "" {
@@ -195,7 +199,7 @@ func applyMain(args []string) {
 			fmt.Fprintf(os.Stderr, "Could not load credentials: %v\n", err)
 			os.Exit(1)
 		}
-	} else {
+	} else if !hasAltAuth {
 		if email == "" {
 			email = strings.TrimSpace(readApplyPrompt(scanner, "FPL email"))
 		}
@@ -204,7 +208,7 @@ func applyMain(args []string) {
 			password = readApplyPrompt(scanner, "FPL password")
 		}
 	}
-	if email == "" || password == "" {
+	if !hasAltAuth && (email == "" || password == "") {
 		fmt.Fprintln(os.Stderr, "Validation failed: email and password are required.")
 		os.Exit(1)
 	}
