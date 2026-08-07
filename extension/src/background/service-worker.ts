@@ -85,7 +85,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const idToTeam = new Map<number, number>();
         bootstrap.elements.forEach((p) => idToTeam.set(p.id, p.team));
 
-        const transfers = myTeam ? planTransfers(myTeam, optimal, 4, idToTeam) : [];
+        const scoredById = new Map<number, typeof scoredPlayers[0]>();
+        scoredPlayers.forEach((sp) => scoredById.set(sp.player.id, sp));
+
+        const transfers = myTeam ? planTransfers(myTeam, optimal, 4, idToTeam, scoredById) : [];
 
         sendResponse({
           success: true,
