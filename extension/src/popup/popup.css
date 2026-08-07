@@ -1,0 +1,262 @@
+/* Extension Popup CSS */
+:root {
+  --fpl-purple: #38003c;
+  --fpl-dark-purple: #240029;
+  --fpl-card-bg: #2d0032;
+  --fpl-green: #00ff87;
+  --fpl-pink: #e90052;
+  --fpl-cyan: #04f5ff;
+  --fpl-text: #ffffff;
+  --fpl-subtext: #a393a5;
+  --fpl-border: rgba(255, 255, 255, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 480px;
+  height: 600px;
+  background-color: var(--fpl-purple);
+  color: var(--fpl-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+header {
+  background-color: var(--fpl-dark-purple);
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--fpl-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+header h1 {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--fpl-green);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gw-badge {
+  background: var(--fpl-pink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.controls-card {
+  background: var(--fpl-card-bg);
+  padding: 14px;
+  border-bottom: 1px solid var(--fpl-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-row {
+  display: flex;
+  gap: 10px;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group label {
+  font-size: 11px;
+  color: var(--fpl-subtext);
+  font-weight: 600;
+}
+
+input, select {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--fpl-dark-purple);
+  color: var(--fpl-text);
+  border: 1px solid var(--fpl-border);
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+
+input:focus, select:focus {
+  border-color: var(--fpl-green);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #00ff87 0%, #02ef76 100%);
+  color: var(--fpl-purple);
+  font-weight: 800;
+  font-size: 13px;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.tabs {
+  display: flex;
+  background-color: var(--fpl-dark-purple);
+  border-bottom: 1px solid var(--fpl-border);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px 4px;
+  background: transparent;
+  border: none;
+  color: var(--fpl-subtext);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  color: var(--fpl-green);
+  border-bottom-color: var(--fpl-green);
+}
+
+.content-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.summary-banner {
+  background: var(--fpl-card-bg);
+  border: 1px solid var(--fpl-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.score-display {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--fpl-green);
+}
+
+.score-label {
+  font-size: 11px;
+  color: var(--fpl-subtext);
+}
+
+.captain-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.captain-card {
+  flex: 1;
+  background: var(--fpl-card-bg);
+  border: 1px solid var(--fpl-border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.captain-role {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--fpl-green);
+  text-transform: uppercase;
+}
+
+.captain-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.player-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.player-table th {
+  text-align: left;
+  padding: 6px 8px;
+  color: var(--fpl-subtext);
+  font-size: 11px;
+  border-bottom: 1px solid var(--fpl-border);
+}
+
+.player-table td {
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.badge-c {
+  background: var(--fpl-green);
+  color: var(--fpl-purple);
+  font-weight: 800;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+.badge-vc {
+  background: var(--fpl-pink);
+  color: #fff;
+  font-weight: 800;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+.loading-spinner {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--fpl-green);
+  font-weight: 600;
+}
+
+.transfer-item {
+  background: var(--fpl-card-bg);
+  border: 1px solid var(--fpl-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.transfer-out {
+  color: #ff5555;
+  font-weight: 600;
+}
+
+.transfer-in {
+  color: var(--fpl-green);
+  font-weight: 600;
+}

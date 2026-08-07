@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "FPL Picker AI",
+  "version": "1.0.0",
+  "description": "XI-First FPL Squad Optimizer, Opponent-Conditioned Scoring Engine & Transfer Recommender",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "FPL Picker AI"
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://fantasy.premierleague.com/*",
+    "https://users.premierleague.com/*",
+    "https://account.premierleague.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://fantasy.premierleague.com/*"
+      ],
+      "js": [
+        "src/content/content.js"
+      ],
+      "css": [
+        "src/content/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

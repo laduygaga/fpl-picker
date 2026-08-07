@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FPL Picker AI</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>⚽ FPL Picker AI</h1>
+      <span id="gw-badge" class="gw-badge">GW--</span>
+    </header>
+
+    <div class="controls-card">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="budget">Budget (£M)</label>
+          <input type="number" id="budget" value="100.0" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label for="formula">Formula</label>
+          <select id="formula">
+            <option value="1">1 - Balanced</option>
+            <option value="2">2 - Attacker</option>
+            <option value="3">3 - Defender</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="team-id">FPL Team ID</label>
+          <input type="number" id="team-id" placeholder="Auto / ID" />
+        </div>
+      </div>
+      <button id="run-btn" class="btn-primary">Optimize Squad</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab-optimal">Starting XI & Bench</button>
+      <button class="tab-btn" data-tab="tab-transfers">Transfers</button>
+    </div>
+
+    <div class="content-area">
+      <!-- Optimal XI Tab -->
+      <div id="tab-optimal" class="tab-content">
+        <div id="summary-banner" class="summary-banner" style="display: none;">
+          <div>
+            <div class="score-label">Starting XI Score</div>
+            <div id="xi-score" class="score-display">0.000</div>
+          </div>
+          <div style="text-align: right;">
+            <div id="formation-label" style="font-weight: 700; color: var(--fpl-cyan);">---</div>
+            <div id="cost-label" class="score-label">Cost: £0.0M</div>
+          </div>
+        </div>
+
+        <div id="captain-container" class="captain-container" style="display: none;">
+          <div class="captain-card">
+            <span class="captain-role">Captain (©)</span>
+            <span id="captain-name" class="captain-name">--</span>
+          </div>
+          <div class="captain-card">
+            <span class="captain-role" style="color: var(--fpl-pink);">Vice Captain (V)</span>
+            <span id="vc-name" class="captain-name">--</span>
+          </div>
+        </div>
+
+        <div id="optimal-output">
+          <div class="loading-spinner">Click "Optimize Squad" to run optimizer...</div>
+        </div>
+      </div>
+
+      <!-- Transfers Tab -->
+      <div id="tab-transfers" class="tab-content" style="display: none;">
+        <div id="transfers-output">
+          <div style="text-align: center; color: var(--fpl-subtext); padding: 40px 0;">
+            Enter FPL Team ID to generate transfer recommendations.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="popup.ts"></script>
+  </body>
+</html>

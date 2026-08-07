@@ -1,0 +1,17 @@
+{
+  "name": "fpl-picker-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension for Fantasy Premier League (FPL) squad optimization, captain recommendations, and AI transfer suggestions.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.0"
+  }
+}

@@ -6,3 +6,8 @@ main
 # Apply command artifacts (added for the `apply` subcommand)
 .credentials/
 .apply-state.json
+
+# Chrome extension build & dependencies
+extension/dist/
+extension/node_modules/
+.omo/

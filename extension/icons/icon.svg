@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <rect width="128" height="128" rx="28" fill="#38003c"/>
+  <circle cx="64" cy="64" r="44" fill="none" stroke="#00ff87" stroke-width="8"/>
+  <text x="64" y="80" font-family="-apple-system, sans-serif" font-weight="900" font-size="48" fill="#00ff87" text-anchor="middle">FPL</text>
+</svg>
