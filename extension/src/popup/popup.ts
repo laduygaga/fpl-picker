@@ -176,11 +176,14 @@ async function applyChangesToFPL(): Promise<void> {
     applyBtn.textContent = '⏳ Applying changes to FPL...';
   }
 
+  const formula = (document.getElementById('formula') as HTMLSelectElement)?.value || '1';
+
   chrome.runtime.sendMessage(
     {
       type: 'APPLY_CHANGES',
       teamId,
       nextGw: lastOptimizationData.nextGw,
+      formula,
       optimal: lastOptimizationData.optimal,
       transfers: lastOptimizationData.transfers,
     },

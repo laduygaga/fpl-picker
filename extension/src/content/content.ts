@@ -275,11 +275,14 @@ function applyDrawerChanges(): void {
     btn.textContent = '⏳ Applying changes to FPL...';
   }
 
+  const formula = (document.getElementById('fpl-drawer-formula') as HTMLSelectElement)?.value || '1';
+
   chrome.runtime.sendMessage(
     {
       type: 'APPLY_CHANGES',
       teamId,
       nextGw: lastDrawerData.nextGw,
+      formula,
       optimal: lastDrawerData.optimal,
       transfers: lastDrawerData.transfers,
     },

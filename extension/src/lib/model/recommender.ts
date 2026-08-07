@@ -629,3 +629,83 @@ export function sortByPosAndScore(players: ScoredPlayer[]): void {
     return b.score - a.score;
   });
 }
+
+export function bestXIFromSquad(squad: ScoredPlayer[]): SquadResult {
+  const byPos = new Map<number, ScoredPlayer[]>();
+  [PosGK, PosDEF, PosMID, PosFWD].forEach((pos) => byPos.set(pos, []));
+
+  squad.forEach((p) => {
+    const list = byPos.get(p.player.element_type);
+    if (list) list.push(p);
+  });
+
+  byPos.forEach((pool) => {
+    pool.sort((a, b) => b.score - a.score);
+  });
+
+  let bestStarters: ScoredPlayer[] = [];
+  let bestFormation = '';
+  let maxScore = -1;
+
+  for (const fm of VALID_FORMATIONS) {
+    const needs: Record<number, number> = {
+      [PosGK]: fm.gk,
+      [PosDEF]: fm.def,
+      [PosMID]: fm.mid,
+      [PosFWD]: fm.fwd,
+    };
+
+    let valid = true;
+    for (const pos of [PosGK, PosDEF, PosMID, PosFWD]) {
+      if ((byPos.get(pos)?.length || 0) < needs[pos]) {
+        valid = false;
+        break;
+      }
+    }
+    if (!valid) continue;
+
+    const trial: ScoredPlayer[] = [];
+    let score = 0;
+
+    for (const pos of [PosGK, PosDEF, PosMID, PosFWD]) {
+      const n = needs[pos];
+      const pool = byPos.get(pos) || [];
+      for (let j = 0; j < n; j++) {
+        trial.push(pool[j]);
+        score += pool[j].score;
+      }
+    }
+
+    if (score > maxScore) {
+      maxScore = score;
+      bestStarters = trial;
+      bestFormation = fm.name;
+    }
+  }
+
+  sortByPosAndScore(bestStarters);
+
+  const starterIds = new Set(bestStarters.map((p) => p.player.id));
+  const bench = squad.filter((p) => !starterIds.has(p.player.id));
+  bench.sort((a, b) => a.player.now_cost - b.player.now_cost);
+
+  const { captain, viceCaptain } = pickCaptains(bestStarters);
+
+  let xiCost = 0;
+  bestStarters.forEach((p) => (xiCost += p.player.now_cost));
+
+  let totalCost = xiCost;
+  bench.forEach((p) => (totalCost += p.player.now_cost));
+
+  return {
+    formation: bestFormation,
+    starters: bestStarters,
+    bench,
+    captain,
+    viceCaptain,
+    totalScore: maxScore,
+    xiCost: xiCost / 10.0,
+    totalCost: totalCost / 10.0,
+    budget: totalCost / 10.0,
+  };
+}

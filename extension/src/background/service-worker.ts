@@ -1,6 +1,6 @@
 import { fplClient } from '../lib/api/client';
 import { Scorer } from '../lib/model/scorer';
-import { findBestSquad } from '../lib/model/recommender';
+import { findBestSquad, bestXIFromSquad } from '../lib/model/recommender';
 import { planTransfers } from '../lib/model/transfers';
 import { planLineup } from '../lib/model/lineup';
 import type { TransferSuggestion } from '../lib/model/transfers';
@@ -107,10 +107,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'APPLY_CHANGES') {
-    const { teamId, nextGw, optimal, transfers } = message as {
+    const { teamId, nextGw, transfers, formula } = message as {
       type: 'APPLY_CHANGES';
       teamId: number;
       nextGw: number;
+      formula?: string;
       optimal: SquadResult;
       transfers: TransferSuggestion[];
     };
@@ -140,7 +141,35 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           transferNotice = `Transfers committed (${transfers.length}). `;
         }
 
-        const lineup = planLineup(optimal);
+        const [bootstrap, fixtures, myTeam] = await Promise.all([
+          fplClient.getBootstrapStatic(true),
+          fplClient.getFixtures(true),
+          fplClient.getMyTeam(teamId),
+        ]);
+
+        const scorer = new Scorer(
+          bootstrap.teams,
+          fixtures,
+          bootstrap.events,
+          bootstrap.elements,
+          formula || '1'
+        );
+
+        const allScored = scorer.scoreAll(bootstrap.elements);
+        const scoredById = new Map<number, typeof allScored[0]>();
+        allScored.forEach((sp) => scoredById.set(sp.player.id, sp));
+
+        const current15Scored: typeof allScored = [];
+        myTeam.picks.forEach((pick) => {
+          const sp = scoredById.get(pick.element);
+          if (sp) {
+            current15Scored.push(sp);
+          }
+        });
+
+        const postTransferResult = bestXIFromSquad(current15Scored);
+        const lineup = planLineup(postTransferResult);
+
         const lineupRes = await fplClient.postLineup(teamId, lineup);
         if (!lineupRes.success) {
           sendResponse({
