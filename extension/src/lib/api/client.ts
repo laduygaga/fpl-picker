@@ -175,8 +175,17 @@ export class FPLClient {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        return { success: false, error: data?.message || 'Lineup update failed' };
+        let errText = '';
+        try {
+          const data = await res.json();
+          errText = data?.message || data?.non_field_errors?.join(', ') || JSON.stringify(data);
+        } catch {
+          errText = await res.text().catch(() => '');
+        }
+        if (res.status === 403) {
+          errText = '403 Forbidden - Please log into fantasy.premierleague.com in your browser';
+        }
+        return { success: false, error: errText || `HTTP ${res.status}` };
       }
 
       return { success: true };

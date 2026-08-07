@@ -20,7 +20,6 @@ export function planLineup(result: SquadResult): LineupUpdate {
     picks.push({
       element: sp.player.id,
       position: pos,
-      multiplier: isC ? 2 : 1,
       is_captain: isC,
       is_vice_captain: isVc,
     });
@@ -31,12 +30,11 @@ export function planLineup(result: SquadResult): LineupUpdate {
     picks.push({
       element: sp.player.id,
       position: pos,
-      multiplier: 0,
       is_captain: false,
       is_vice_captain: false,
     });
     pos++;
   });
 
-  return { picks };
+  return { picks, chip: null };
 }
