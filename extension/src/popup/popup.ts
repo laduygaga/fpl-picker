@@ -103,7 +103,7 @@ function runOptimizer(): void {
       if (summaryBanner) summaryBanner.style.display = 'flex';
 
       const applyBtn = document.getElementById('apply-btn') as HTMLButtonElement;
-      if (applyBtn && teamId) {
+      if (applyBtn) {
         applyBtn.style.display = 'block';
         applyBtn.disabled = false;
         applyBtn.textContent = '⚡ Apply Changes to FPL Team';
@@ -138,13 +138,21 @@ function runOptimizer(): void {
 function applyChangesToFPL(): void {
   if (!lastOptimizationData) return;
 
-  const teamIdInput = (document.getElementById('team-id') as HTMLInputElement)?.value;
-  if (!teamIdInput) {
-    alert('Please enter your FPL Team ID first.');
-    return;
+  const teamIdInput = document.getElementById('team-id') as HTMLInputElement;
+  let teamIdVal = teamIdInput?.value?.trim();
+
+  if (!teamIdVal) {
+    const prompted = prompt('Please enter your FPL Team ID to apply changes:');
+    if (!prompted) return;
+    teamIdVal = prompted.trim();
+    if (teamIdInput) teamIdInput.value = teamIdVal;
   }
 
-  const teamId = parseInt(teamIdInput, 10);
+  const teamId = parseInt(teamIdVal, 10);
+  if (isNaN(teamId) || teamId <= 0) {
+    alert('Invalid FPL Team ID');
+    return;
+  }
   const applyBtn = document.getElementById('apply-btn') as HTMLButtonElement;
   if (applyBtn) {
     applyBtn.disabled = true;

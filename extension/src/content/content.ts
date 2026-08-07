@@ -30,7 +30,7 @@ function initContentWidget(): void {
     <div class="fpl-drawer-body">
       <div class="fpl-card">
         <div class="fpl-card-title">Strategy Controls</div>
-        <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
           <div style="flex: 1;">
             <label style="font-size: 11px; color: #a393a5; display: block; margin-bottom: 4px;">Formula</label>
             <select id="fpl-drawer-formula" style="width: 100%; padding: 8px; background: #240029; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;">
@@ -43,6 +43,10 @@ function initContentWidget(): void {
             <label style="font-size: 11px; color: #a393a5; display: block; margin-bottom: 4px;">Budget (£M)</label>
             <input type="number" id="fpl-drawer-budget" value="100.0" step="0.1" style="width: 100%; padding: 8px; background: #240029; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;">
           </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 11px; color: #a393a5; display: block; margin-bottom: 4px;">FPL Team ID</label>
+          <input type="number" id="fpl-drawer-team-id" placeholder="Auto-detected or enter ID" style="width: 100%; padding: 8px; background: #240029; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;">
         </div>
         <button class="fpl-btn-primary" id="fpl-drawer-run-btn">Run Squad Optimizer</button>
       </div>
