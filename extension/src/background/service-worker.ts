@@ -2,6 +2,10 @@ import { fplClient } from '../lib/api/client';
 import { Scorer } from '../lib/model/scorer';
 import { findBestSquad } from '../lib/model/recommender';
 import { planTransfers } from '../lib/model/transfers';
+import { planLineup } from '../lib/model/lineup';
+import type { TransferSuggestion } from '../lib/model/transfers';
+import type { SquadResult } from '../lib/model/recommender';
+import type { TransferRequest } from '../lib/api/types';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('FPL Picker AI extension installed.');
@@ -94,6 +98,62 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .catch((err) => {
         sendResponse({ success: false, error: err.message });
       });
+
+    return true;
+  }
+
+  if (message.type === 'APPLY_CHANGES') {
+    const { teamId, nextGw, optimal, transfers } = message as {
+      type: 'APPLY_CHANGES';
+      teamId: number;
+      nextGw: number;
+      optimal: SquadResult;
+      transfers: TransferSuggestion[];
+    };
+
+    (async () => {
+      try {
+        let transferNotice = '';
+
+        if (transfers && transfers.length > 0) {
+          const req: TransferRequest = {
+            confirmed: true,
+            entry: teamId,
+            event: nextGw,
+            transfers: transfers.map((t) => ({
+              element_in: t.in.player.id,
+              element_out: t.out.player.id,
+              purchase_price: t.purchasePrice,
+              selling_price: t.sellingPrice,
+            })),
+          };
+
+          const transferRes = await fplClient.postTransfers(req);
+          if (!transferRes.success) {
+            sendResponse({ success: false, error: `Transfer failed: ${transferRes.error}` });
+            return;
+          }
+          transferNotice = `Transfers committed (${transfers.length}). `;
+        }
+
+        const lineup = planLineup(optimal);
+        const lineupRes = await fplClient.postLineup(teamId, lineup);
+        if (!lineupRes.success) {
+          sendResponse({
+            success: false,
+            error: `${transferNotice}Lineup update failed: ${lineupRes.error}`,
+          });
+          return;
+        }
+
+        sendResponse({
+          success: true,
+          message: `${transferNotice}Lineup & Captains applied successfully to FPL!`,
+        });
+      } catch (err) {
+        sendResponse({ success: false, error: (err as Error).message });
+      }
+    })();
 
     return true;
   }

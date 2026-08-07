@@ -113,6 +113,26 @@ input:focus, select:focus {
   opacity: 0.9;
 }
 
+.btn-apply {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #e90052 0%, #ff1a6c 100%);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 13px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(233, 0, 82, 0.3);
+  transition: all 0.2s;
+}
+
+.btn-apply:hover {
+  opacity: 0.95;
+  transform: translateY(-1px);
+}
+
 .tabs {
   display: flex;
   background-color: var(--fpl-dark-purple);

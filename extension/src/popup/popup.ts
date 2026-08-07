@@ -12,11 +12,18 @@ interface OptimizeResponse {
   };
 }
 
+let lastOptimizationData: {
+  optimal: SquadResult;
+  transfers: TransferSuggestion[];
+  nextGw: number;
+} | null = null;
+
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   autoDetectTeamId();
 
   document.getElementById('run-btn')?.addEventListener('click', runOptimizer);
+  document.getElementById('apply-btn')?.addEventListener('click', applyChangesToFPL);
 });
 
 function setupTabs(): void {
@@ -86,14 +93,21 @@ function runOptimizer(): void {
       }
 
       const { optimal, transfers, nextGw } = res.data;
+      lastOptimizationData = { optimal, transfers, nextGw };
 
       // Update GW Badge
       const gwBadge = document.getElementById('gw-badge');
       if (gwBadge) gwBadge.textContent = `GW${nextGw}`;
 
-      // Update Summary Banner
       const summaryBanner = document.getElementById('summary-banner');
       if (summaryBanner) summaryBanner.style.display = 'flex';
+
+      const applyBtn = document.getElementById('apply-btn') as HTMLButtonElement;
+      if (applyBtn && teamId) {
+        applyBtn.style.display = 'block';
+        applyBtn.disabled = false;
+        applyBtn.textContent = '⚡ Apply Changes to FPL Team';
+      }
 
       const xiScoreEl = document.getElementById('xi-score');
       if (xiScoreEl) xiScoreEl.textContent = optimal.totalScore.toFixed(3);
@@ -117,6 +131,46 @@ function runOptimizer(): void {
       // Render Tables
       renderOptimalTable(optimal);
       renderTransfersTable(transfers);
+    }
+  );
+}
+
+function applyChangesToFPL(): void {
+  if (!lastOptimizationData) return;
+
+  const teamIdInput = (document.getElementById('team-id') as HTMLInputElement)?.value;
+  if (!teamIdInput) {
+    alert('Please enter your FPL Team ID first.');
+    return;
+  }
+
+  const teamId = parseInt(teamIdInput, 10);
+  const applyBtn = document.getElementById('apply-btn') as HTMLButtonElement;
+  if (applyBtn) {
+    applyBtn.disabled = true;
+    applyBtn.textContent = '⏳ Applying changes to FPL...';
+  }
+
+  chrome.runtime.sendMessage(
+    {
+      type: 'APPLY_CHANGES',
+      teamId,
+      nextGw: lastOptimizationData.nextGw,
+      optimal: lastOptimizationData.optimal,
+      transfers: lastOptimizationData.transfers,
+    },
+    (res) => {
+      if (applyBtn) {
+        if (res && res.success) {
+          applyBtn.textContent = '✅ Applied Successfully to FPL!';
+          applyBtn.style.background = '#00ff87';
+          applyBtn.style.color = '#38003c';
+        } else {
+          applyBtn.disabled = false;
+          applyBtn.textContent = '⚡ Apply Changes to FPL Team';
+          alert(`Failed to apply changes: ${res?.error || 'Unknown error'}`);
+        }
+      }
     }
   );
 }

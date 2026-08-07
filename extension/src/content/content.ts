@@ -3,6 +3,12 @@ import type { TransferSuggestion } from '../lib/model/transfers';
 
 let drawerOpen = false;
 
+let lastDrawerData: {
+  optimal: SquadResult;
+  transfers: TransferSuggestion[];
+  nextGw: number;
+} | null = null;
+
 function initContentWidget(): void {
   if (document.getElementById('fpl-picker-widget-toggle')) return;
 
@@ -121,8 +127,22 @@ function renderDrawerResults(data: OptimizeData): void {
   if (!resultsDiv) return;
 
   const { optimal, transfers, nextGw } = data;
+  lastDrawerData = { optimal, transfers, nextGw };
+
+  const savedTeamId = sessionStorage.getItem('fpl_picker_my_team_id');
+  const teamId = savedTeamId ? parseInt(savedTeamId, 10) : null;
+
+  let applyBtnHtml = '';
+  if (teamId) {
+    applyBtnHtml = `
+      <button id="fpl-drawer-apply-btn" class="fpl-btn-primary" style="background: linear-gradient(135deg, #e90052 0%, #ff1a6c 100%); color: #fff; margin-bottom: 12px; font-weight: 800;">
+        ⚡ Apply Changes to FPL Team
+      </button>
+    `;
+  }
 
   let html = `
+    ${applyBtnHtml}
     <div class="fpl-card">
       <div class="fpl-card-title">GW${nextGw} Optimal XI (${optimal.formation})</div>
       <div style="font-size: 20px; font-weight: 800; color: #00ff87; margin-bottom: 8px;">
@@ -184,6 +204,51 @@ function renderDrawerResults(data: OptimizeData): void {
   }
 
   resultsDiv.innerHTML = html;
+
+  const drawerApplyBtn = document.getElementById('fpl-drawer-apply-btn') as HTMLButtonElement;
+  if (drawerApplyBtn) {
+    drawerApplyBtn.addEventListener('click', applyDrawerChanges);
+  }
+}
+
+function applyDrawerChanges(): void {
+  if (!lastDrawerData) return;
+
+  const savedTeamId = sessionStorage.getItem('fpl_picker_my_team_id');
+  if (!savedTeamId) {
+    alert('No FPL Team ID detected.');
+    return;
+  }
+
+  const teamId = parseInt(savedTeamId, 10);
+  const btn = document.getElementById('fpl-drawer-apply-btn') as HTMLButtonElement;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Applying changes to FPL...';
+  }
+
+  chrome.runtime.sendMessage(
+    {
+      type: 'APPLY_CHANGES',
+      teamId,
+      nextGw: lastDrawerData.nextGw,
+      optimal: lastDrawerData.optimal,
+      transfers: lastDrawerData.transfers,
+    },
+    (res) => {
+      if (btn) {
+        if (res && res.success) {
+          btn.textContent = '✅ Applied Successfully!';
+          btn.style.background = '#00ff87';
+          btn.style.color = '#38003c';
+        } else {
+          btn.disabled = false;
+          btn.textContent = '⚡ Apply Changes to FPL Team';
+          alert(`Failed to apply changes: ${res?.error || 'Unknown error'}`);
+        }
+      }
+    }
+  );
 }
 
 // Run widget setup on load
