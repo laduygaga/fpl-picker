@@ -187,7 +187,12 @@ function renderDrawerResults(data: OptimizeData): void {
   if (transfers && transfers.length > 0) {
     html += `
       <div class="fpl-card">
-        <div class="fpl-card-title">Recommended Transfers (${transfers.length})</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div class="fpl-card-title" style="margin-bottom: 0;">Recommended Transfers (${transfers.length})</div>
+          <button id="fpl-drawer-apply-transfers-btn" style="background: linear-gradient(135deg, #e90052 0%, #ff1a6c 100%); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 11px; cursor: pointer;">
+            ⚡ Apply Transfers
+          </button>
+        </div>
     `;
 
     transfers.forEach((t) => {
@@ -208,6 +213,11 @@ function renderDrawerResults(data: OptimizeData): void {
   const drawerApplyBtn = document.getElementById('fpl-drawer-apply-btn') as HTMLButtonElement;
   if (drawerApplyBtn) {
     drawerApplyBtn.addEventListener('click', applyDrawerChanges);
+  }
+
+  const drawerApplyTransfersBtn = document.getElementById('fpl-drawer-apply-transfers-btn') as HTMLButtonElement;
+  if (drawerApplyTransfersBtn) {
+    drawerApplyTransfersBtn.addEventListener('click', applyDrawerChanges);
   }
 }
 

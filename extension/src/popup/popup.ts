@@ -263,7 +263,10 @@ function renderTransfersTable(transfers: TransferSuggestion[]): void {
     return;
   }
 
-  let html = `<h3 style="font-size: 13px; color: var(--fpl-green); margin-bottom: 10px;">PROPOSED TRANSFERS (${transfers.length})</h3>`;
+  let html = `
+    <button id="apply-transfers-tab-btn" class="btn-apply">⚡ Apply ${transfers.length} Transfer(s) to FPL</button>
+    <h3 style="font-size: 13px; color: var(--fpl-green); margin-bottom: 10px;">PROPOSED TRANSFERS (${transfers.length})</h3>
+  `;
 
   transfers.forEach((t) => {
     html += `
@@ -281,4 +284,9 @@ function renderTransfersTable(transfers: TransferSuggestion[]): void {
   });
 
   output.innerHTML = html;
+
+  const tabApplyBtn = document.getElementById('apply-transfers-tab-btn') as HTMLButtonElement;
+  if (tabApplyBtn) {
+    tabApplyBtn.addEventListener('click', applyChangesToFPL);
+  }
 }
