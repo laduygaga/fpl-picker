@@ -12,6 +12,13 @@ function copyExtensionAssets() {
       }
       copyFileSync('manifest.json', 'dist/manifest.json');
       
+      if (existsSync('src/content/content.css')) {
+        if (!existsSync('dist/src/content')) {
+          mkdirSync('dist/src/content', { recursive: true });
+        }
+        copyFileSync('src/content/content.css', 'dist/src/content/content.css');
+      }
+
       if (!existsSync('dist/icons')) {
         mkdirSync('dist/icons', { recursive: true });
       }
