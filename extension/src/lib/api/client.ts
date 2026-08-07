@@ -138,10 +138,23 @@ export class FPLClient {
         body: JSON.stringify(req),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: unknown = null;
+      if (text && text.trim().length > 0) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+
       if (!res.ok) {
-        const errResp = data as TransferErrorResponse;
-        const msg = errResp.message || errResp.non_form_errors?.join(', ') || 'Transfer failed';
+        const errResp = (data || {}) as TransferErrorResponse;
+        const msg =
+          errResp.message ||
+          (Array.isArray(errResp.non_form_errors) ? errResp.non_form_errors.join(', ') : '') ||
+          (typeof data === 'string' ? data : '') ||
+          `HTTP ${res.status}`;
         return { success: false, error: msg, data };
       }
 
@@ -165,13 +178,16 @@ export class FPLClient {
         body: JSON.stringify(lineup),
       });
 
+      const text = await res.text();
       if (!res.ok) {
         let errText = '';
-        try {
-          const data = await res.json();
-          errText = data?.message || data?.non_field_errors?.join(', ') || JSON.stringify(data);
-        } catch {
-          errText = await res.text().catch(() => '');
+        if (text && text.trim().length > 0) {
+          try {
+            const data = JSON.parse(text);
+            errText = data?.message || data?.non_field_errors?.join(', ') || JSON.stringify(data);
+          } catch {
+            errText = text;
+          }
         }
         if (res.status === 403) {
           errText = '403 Forbidden - Please log into fantasy.premierleague.com in your browser';
