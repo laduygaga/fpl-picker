@@ -143,17 +143,26 @@ function runOptimizer(): void {
   );
 }
 
-function applyChangesToFPL(): void {
+async function applyChangesToFPL(): Promise<void> {
   if (!lastOptimizationData) return;
 
   const teamIdInput = document.getElementById('team-id') as HTMLInputElement;
   let teamIdVal = teamIdInput?.value?.trim();
 
   if (!teamIdVal) {
-    const prompted = prompt('Please enter your FPL Team ID to apply changes:');
-    if (!prompted) return;
-    teamIdVal = prompted.trim();
-    if (teamIdInput) teamIdInput.value = teamIdVal;
+    const res = await new Promise<{ success: boolean; entry?: number }>((resolve) => {
+      chrome.runtime.sendMessage({ type: 'DETECT_ENTRY' }, resolve);
+    });
+
+    if (res?.success && res.entry) {
+      teamIdVal = res.entry.toString();
+      if (teamIdInput) teamIdInput.value = teamIdVal;
+    } else {
+      const prompted = prompt('Could not auto-detect FPL session. Please log into fantasy.premierleague.com or enter your FPL Team ID:');
+      if (!prompted) return;
+      teamIdVal = prompted.trim();
+      if (teamIdInput) teamIdInput.value = teamIdVal;
+    }
   }
 
   const teamId = parseInt(teamIdVal, 10);

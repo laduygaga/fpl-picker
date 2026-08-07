@@ -87,7 +87,9 @@ export class FPLClient {
    */
   async getMyEntryId(): Promise<number | null> {
     try {
+      const headers = await this.getAuthHeaders();
       const res = await fetch(`${FPL_BASE_URL}/me/`, {
+        headers,
         credentials: 'include',
       });
       if (!res.ok) {
@@ -107,7 +109,9 @@ export class FPLClient {
    * Fetches user's current squad / picks / bank / transfers info for a given team ID.
    */
   async getMyTeam(teamId: number): Promise<MyTeam> {
+    const headers = await this.getAuthHeaders();
     const res = await fetch(`${FPL_BASE_URL}/my-team/${teamId}/`, {
+      headers,
       credentials: 'include',
     });
     if (!res.ok) {
@@ -125,14 +129,7 @@ export class FPLClient {
    */
   async postTransfers(req: TransferRequest): Promise<{ success: boolean; data?: unknown; error?: string }> {
     try {
-      // Get CSRF token from document.cookie if available
-      const csrfToken = this.getCsrfToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (csrfToken) {
-        headers['X-CSRFToken'] = csrfToken;
-      }
+      const headers = await this.getAuthHeaders();
 
       const res = await fetch(`${FPL_BASE_URL}/transfers/`, {
         method: 'POST',
@@ -159,13 +156,7 @@ export class FPLClient {
    */
   async postLineup(teamId: number, lineup: LineupUpdate): Promise<{ success: boolean; error?: string }> {
     try {
-      const csrfToken = this.getCsrfToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (csrfToken) {
-        headers['X-CSRFToken'] = csrfToken;
-      }
+      const headers = await this.getAuthHeaders();
 
       const res = await fetch(`${FPL_BASE_URL}/my-team/${teamId}/`, {
         method: 'POST',
@@ -194,10 +185,32 @@ export class FPLClient {
     }
   }
 
-  private getCsrfToken(): string | null {
-    if (typeof document === 'undefined') return null;
-    const match = document.cookie.match(/csrftoken=([^;]+)/);
-    return match ? match[1] : null;
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (typeof chrome !== 'undefined' && chrome.cookies) {
+      try {
+        const cookies = await chrome.cookies.getAll({ domain: 'premierleague.com' });
+        if (cookies && cookies.length > 0) {
+          headers['Cookie'] = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+          const csrf = cookies.find((c) => c.name === 'csrftoken');
+          if (csrf) {
+            headers['X-CSRFToken'] = csrf.value;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch extension cookies:', e);
+      }
+    } else if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/csrftoken=([^;]+)/);
+      if (match) {
+        headers['X-CSRFToken'] = match[1];
+      }
+    }
+
+    return headers;
   }
 }
 
