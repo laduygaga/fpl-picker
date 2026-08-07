@@ -124,14 +124,23 @@ interface OptimizeData {
   optimal: SquadResult;
   transfers: TransferSuggestion[];
   nextGw: number;
+  detectedTeamId?: number | null;
 }
 
 function renderDrawerResults(data: OptimizeData): void {
   const resultsDiv = document.getElementById('fpl-drawer-results');
   if (!resultsDiv) return;
 
-  const { optimal, transfers, nextGw } = data;
+  const { optimal, transfers, nextGw, detectedTeamId } = data;
   lastDrawerData = { optimal, transfers, nextGw };
+
+  if (detectedTeamId) {
+    sessionStorage.setItem('fpl_picker_my_team_id', detectedTeamId.toString());
+    const drawerTeamInput = document.getElementById('fpl-drawer-team-id') as HTMLInputElement;
+    if (drawerTeamInput && !drawerTeamInput.value) {
+      drawerTeamInput.value = detectedTeamId.toString();
+    }
+  }
 
   const savedTeamId = sessionStorage.getItem('fpl_picker_my_team_id');
   const teamId = savedTeamId ? parseInt(savedTeamId, 10) : null;

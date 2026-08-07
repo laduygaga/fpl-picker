@@ -55,12 +55,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'OPTIMIZE_SQUAD') {
     const { budget, formula, teamId, fresh } = message as OptimizeMessage;
 
-    Promise.all([
-      fplClient.getBootstrapStatic(fresh),
-      fplClient.getFixtures(fresh),
-      teamId ? fplClient.getMyTeam(teamId).catch(() => null) : Promise.resolve(null),
-    ])
-      .then(([bootstrap, fixtures, myTeam]) => {
+    (async () => {
+      try {
+        let tid = teamId;
+        if (!tid) {
+          tid = await fplClient.getMyEntryId();
+        }
+
+        const [bootstrap, fixtures, myTeam] = await Promise.all([
+          fplClient.getBootstrapStatic(fresh),
+          fplClient.getFixtures(fresh),
+          tid ? fplClient.getMyTeam(tid).catch(() => null) : Promise.resolve(null),
+        ]);
+
         const scorer = new Scorer(
           bootstrap.teams,
           fixtures,
@@ -75,14 +82,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const budgetTenths = Math.round(budget * 10);
         const optimal = findBestSquad(scoredPlayers, budgetTenths, pairings);
 
-        // Build player ID to team ID map
         const idToTeam = new Map<number, number>();
         bootstrap.elements.forEach((p) => idToTeam.set(p.id, p.team));
 
-        // Plan transfers if user team is available
-        const transfers = myTeam
-          ? planTransfers(myTeam, optimal, 4, idToTeam)
-          : [];
+        const transfers = myTeam ? planTransfers(myTeam, optimal, 4, idToTeam) : [];
 
         sendResponse({
           success: true,
@@ -92,12 +95,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             transfers,
             nextGw: scorer.getNextEventId(),
             scoredPlayersCount: scoredPlayers.length,
+            detectedTeamId: tid,
           },
         });
-      })
-      .catch((err) => {
-        sendResponse({ success: false, error: err.message });
-      });
+      } catch (err) {
+        sendResponse({ success: false, error: (err as Error).message });
+      }
+    })();
 
     return true;
   }

@@ -9,6 +9,7 @@ interface OptimizeResponse {
     transfers: TransferSuggestion[];
     nextGw: number;
     scoredPlayersCount: number;
+    detectedTeamId?: number | null;
   };
 }
 
@@ -92,8 +93,15 @@ function runOptimizer(): void {
         return;
       }
 
-      const { optimal, transfers, nextGw } = res.data;
+      const { optimal, transfers, nextGw, detectedTeamId } = res.data;
       lastOptimizationData = { optimal, transfers, nextGw };
+
+      if (detectedTeamId) {
+        const teamInput = document.getElementById('team-id') as HTMLInputElement;
+        if (teamInput && !teamInput.value) {
+          teamInput.value = detectedTeamId.toString();
+        }
+      }
 
       // Update GW Badge
       const gwBadge = document.getElementById('gw-badge');
