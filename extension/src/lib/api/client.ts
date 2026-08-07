@@ -190,14 +190,44 @@ export class FPLClient {
       'Content-Type': 'application/json',
     };
 
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      try {
+        const stored = await chrome.storage.local.get('fpl_bearer_token');
+        if (stored?.fpl_bearer_token) {
+          const token = stored.fpl_bearer_token as string;
+          headers['x-api-authorization'] = `Bearer ${token}`;
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (e) {
+        console.warn('Failed to read bearer token from storage:', e);
+      }
+    }
+
     if (typeof chrome !== 'undefined' && chrome.cookies) {
       try {
-        const cookies = await chrome.cookies.getAll({ domain: 'premierleague.com' });
-        if (cookies && cookies.length > 0) {
-          headers['Cookie'] = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
-          const csrf = cookies.find((c) => c.name === 'csrftoken');
+        const urls = [
+          'https://fantasy.premierleague.com',
+          'https://users.premierleague.com',
+          'https://account.premierleague.com',
+          'https://premierleague.com',
+        ];
+
+        const cookieMap = new Map<string, string>();
+        for (const url of urls) {
+          const list = await chrome.cookies.getAll({ url }).catch(() => []);
+          for (const c of list) {
+            cookieMap.set(c.name, c.value);
+          }
+        }
+
+        if (cookieMap.size > 0) {
+          const pairs: string[] = [];
+          cookieMap.forEach((val, key) => pairs.push(`${key}=${val}`));
+          headers['Cookie'] = pairs.join('; ');
+
+          const csrf = cookieMap.get('csrftoken');
           if (csrf) {
-            headers['X-CSRFToken'] = csrf.value;
+            headers['X-CSRFToken'] = csrf;
           }
         }
       } catch (e) {

@@ -86,6 +86,31 @@ async function detectAndAutoFill(): Promise<void> {
   if (match) {
     const teamId = parseInt(match[1], 10);
     sessionStorage.setItem('fpl_picker_my_team_id', teamId.toString());
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.set({ fpl_entry_id: teamId });
+    }
+  }
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('oidc.user')) {
+        const val = localStorage.getItem(key);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (parsed.access_token) {
+            chrome.storage.local.set({ fpl_bearer_token: parsed.access_token });
+            if (parsed.profile?.entry) {
+              sessionStorage.setItem('fpl_picker_my_team_id', parsed.profile.entry.toString());
+              chrome.storage.local.set({ fpl_entry_id: Number(parsed.profile.entry) });
+            }
+            break;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('FPL Picker: failed to scan localStorage bearer token:', e);
   }
 }
 
