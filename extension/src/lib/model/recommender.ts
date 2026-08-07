@@ -686,8 +686,12 @@ export function bestXIFromSquad(squad: ScoredPlayer[]): SquadResult {
   sortByPosAndScore(bestStarters);
 
   const starterIds = new Set(bestStarters.map((p) => p.player.id));
-  const bench = squad.filter((p) => !starterIds.has(p.player.id));
-  bench.sort((a, b) => a.player.now_cost - b.player.now_cost);
+  const benchUnsorted = squad.filter((p) => !starterIds.has(p.player.id));
+  const benchGk = benchUnsorted.filter((p) => p.player.element_type === PosGK);
+  const benchOutfield = benchUnsorted.filter((p) => p.player.element_type !== PosGK);
+  benchOutfield.sort((a, b) => b.score - a.score);
+
+  const bench = [...benchGk, ...benchOutfield];
 
   const { captain, viceCaptain } = pickCaptains(bestStarters);
 
