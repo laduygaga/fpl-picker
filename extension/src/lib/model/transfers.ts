@@ -15,7 +15,8 @@ export function planTransfers(
   optimal: SquadResult,
   maxHits = 4,
   idToTeam: Map<number, number>,
-  scoredById?: Map<number, ScoredPlayer>
+  scoredById?: Map<number, ScoredPlayer>,
+  ignoreMaxHits = false
 ): TransferSuggestion[] {
   if (!current || !current.picks || current.picks.length === 0) {
     return [];
@@ -63,7 +64,7 @@ export function planTransfers(
   const used = new Array(outgoing.length).fill(false);
 
   const freeRemaining = Math.max(0, freeLimit - usedFree);
-  const maxByHits = unlimited ? 30 : Math.max(0, freeRemaining + Math.floor(maxHits / 4));
+  const maxByHits = ignoreMaxHits ? Number.MAX_SAFE_INTEGER : (unlimited ? 30 : Math.max(0, freeRemaining + Math.floor(maxHits / 4)));
 
   for (const inPlayer of incoming) {
     if (suggestions.length >= maxByHits) break;
