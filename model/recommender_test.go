@@ -627,3 +627,62 @@ func BenchmarkEstimateBenchCost(b *testing.B) {
 		estimateBenchCost(byPosCostAsc, fm)
 	}
 }
+
+func TestFillBenchOptimizesWithRemainingMoney(t *testing.T) {
+	cheapGK := makeScoredPlayer(1, 1, PosGK, 40, 0.2)
+	premGK := makeScoredPlayer(2, 2, PosGK, 55, 1.5)
+
+	cheapDEF1 := makeScoredPlayer(3, 3, PosDEF, 40, 0.2)
+	cheapDEF2 := makeScoredPlayer(4, 4, PosDEF, 40, 0.2)
+	premDEF1 := makeScoredPlayer(5, 5, PosDEF, 60, 1.8)
+	premDEF2 := makeScoredPlayer(6, 6, PosDEF, 60, 1.8)
+
+	cheapMID := makeScoredPlayer(7, 7, PosMID, 45, 0.3)
+	premMID := makeScoredPlayer(8, 8, PosMID, 70, 2.5)
+
+	pool := []ScoredPlayer{cheapGK, premGK, cheapDEF1, cheapDEF2, premDEF1, premDEF2, cheapMID, premMID}
+
+	byPosCostAsc := map[int][]ScoredPlayer{PosGK: {}, PosDEF: {}, PosMID: {}, PosFWD: {}}
+	byPosScoreDesc := map[int][]ScoredPlayer{PosGK: {}, PosDEF: {}, PosMID: {}, PosFWD: {}}
+
+	for _, p := range pool {
+		byPosCostAsc[p.Player.ElementType] = append(byPosCostAsc[p.Player.ElementType], p)
+		byPosScoreDesc[p.Player.ElementType] = append(byPosScoreDesc[p.Player.ElementType], p)
+	}
+
+	for pos := range byPosCostAsc {
+		sort.Slice(byPosCostAsc[pos], func(i, j int) bool {
+			return byPosCostAsc[pos][i].Player.NowCost < byPosCostAsc[pos][j].Player.NowCost
+		})
+		sort.Slice(byPosScoreDesc[pos], func(i, j int) bool {
+			return byPosScoreDesc[pos][i].Score > byPosScoreDesc[pos][j].Score
+		})
+	}
+
+	xiIDs := map[int]bool{100: true}
+	teamCount := map[int]int{}
+	xiPosCounts := map[int]int{PosGK: 1, PosDEF: 3, PosMID: 4, PosFWD: 3}
+
+	bench := fillBench(byPosCostAsc, byPosScoreDesc, xiIDs, teamCount, xiPosCounts, 250)
+
+	if len(bench) != 4 {
+		t.Fatalf("expected 4 bench players, got %d", len(bench))
+	}
+
+	totalBenchScore := 0.0
+	selectedIDs := map[int]bool{}
+	for _, p := range bench {
+		totalBenchScore += p.Score
+		selectedIDs[p.Player.ID] = true
+	}
+
+	if totalBenchScore < 7.0 {
+		t.Errorf("expected total bench score >= 7.0 with remaining budget, got %.2f", totalBenchScore)
+	}
+
+	for _, expectedID := range []int{2, 5, 6, 8} {
+		if !selectedIDs[expectedID] {
+			t.Errorf("expected player ID %d to be selected for bench", expectedID)
+		}
+	}
+}

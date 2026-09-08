@@ -615,32 +615,211 @@ func pruneTeamOptions(opts []teamOption) []teamOption {
 	return pruned
 }
 
-// fillBench picks bench fillers for the squad. byPosCostAsc is indexed by
-// position and pre-sorted by cost ascending; byPosScoreDesc is pre-sorted by
-// score descending. Both are populated once in FindBestSquad so this call is
-// allocation-free (no per-call copy inside the sort helpers).
+// fillBench picks bench players for the squad, optimizing total bench score
+// using any remaining budget while respecting team limits and budget constraints.
 func fillBench(byPosCostAsc, byPosScoreDesc map[int][]ScoredPlayer, xiIDs map[int]bool, teamCount map[int]int, xiPosCounts map[int]int, remainingBudget float64) []ScoredPlayer {
-	var bench []ScoredPlayer
-	rem := remainingBudget
+	remBudget := int(remainingBudget)
 
 	benchNeeds := map[int]int{}
-	totalNeed := 0
 	for pos, total := range squadSlots {
 		benchNeeds[pos] = total - xiPosCounts[pos]
-		totalNeed += benchNeeds[pos]
 	}
 
-	// Pick bench: score-first if budget is generous, cost-first otherwise.
-	sortByScore := remainingBudget/float64(totalNeed) > 50
+	type posGroup struct {
+		pos        int
+		need       int
+		candidates []ScoredPlayer
+	}
 
-	for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
-		var pool []ScoredPlayer
-		if sortByScore {
-			pool = byPosScoreDesc[pos]
-		} else {
-			pool = byPosCostAsc[pos]
+	var groups []posGroup
+	positions := []int{PosGK, PosDEF, PosMID, PosFWD}
+
+	for _, pos := range positions {
+		need := benchNeeds[pos]
+		if need <= 0 {
+			continue
 		}
 
+		var filtered []ScoredPlayer
+		seen := make(map[int]bool)
+		for _, p := range byPosScoreDesc[pos] {
+			if xiIDs[p.Player.ID] || teamCount[p.Player.Team] >= 3 {
+				continue
+			}
+			if p.Player.NowCost > remBudget {
+				continue
+			}
+			filtered = append(filtered, p)
+			seen[p.Player.ID] = true
+		}
+
+		for _, p := range byPosCostAsc[pos] {
+			if seen[p.Player.ID] || xiIDs[p.Player.ID] || teamCount[p.Player.Team] >= 3 {
+				continue
+			}
+			if p.Player.NowCost > remBudget {
+				continue
+			}
+			filtered = append(filtered, p)
+			seen[p.Player.ID] = true
+		}
+
+		if len(filtered) > 25 {
+			sort.Slice(filtered, func(i, j int) bool {
+				return filtered[i].Score > filtered[j].Score
+			})
+			topByScore := filtered[:20]
+			rest := filtered[20:]
+			sort.Slice(rest, func(i, j int) bool {
+				return rest[i].Player.NowCost < rest[j].Player.NowCost
+			})
+			if len(rest) > 5 {
+				rest = rest[:5]
+			}
+			candidates := append([]ScoredPlayer(nil), topByScore...)
+			candidates = append(candidates, rest...)
+			sort.Slice(candidates, func(i, j int) bool {
+				return candidates[i].Score > candidates[j].Score
+			})
+			groups = append(groups, posGroup{pos: pos, need: need, candidates: candidates})
+		} else {
+			groups = append(groups, posGroup{pos: pos, need: need, candidates: filtered})
+		}
+	}
+
+	if len(groups) == 0 {
+		return nil
+	}
+
+	minCostSuffix := make([]int, len(groups)+1)
+	maxScoreSuffix := make([]float64, len(groups)+1)
+
+	for i := len(groups) - 1; i >= 0; i-- {
+		need := groups[i].need
+		candidates := groups[i].candidates
+		minCost := 0
+		maxScore := 0.0
+		if len(candidates) >= need {
+			costs := make([]int, len(candidates))
+			scores := make([]float64, len(candidates))
+			for k, p := range candidates {
+				costs[k] = p.Player.NowCost
+				scores[k] = p.Score
+			}
+			sort.Ints(costs)
+			sort.Slice(scores, func(a, b int) bool { return scores[a] > scores[b] })
+			for k := 0; k < need; k++ {
+				minCost += costs[k]
+				maxScore += scores[k]
+			}
+		}
+		minCostSuffix[i] = minCostSuffix[i+1] + minCost
+		maxScoreSuffix[i] = maxScoreSuffix[i+1] + maxScore
+	}
+
+	bestScore := -1.0
+	bestCost := math.MaxInt32
+	var bestBench []ScoredPlayer
+
+	tc := make(map[int]int, len(teamCount)+4)
+	for k, v := range teamCount {
+		tc[k] = v
+	}
+
+	var search func(gIdx int, curCost int, curScore float64, curBench []ScoredPlayer)
+	search = func(gIdx int, curCost int, curScore float64, curBench []ScoredPlayer) {
+		if gIdx == len(groups) {
+			if curScore > bestScore+1e-9 || (math.Abs(curScore-bestScore) <= 1e-9 && curCost < bestCost) {
+				bestScore = curScore
+				bestCost = curCost
+				bestBench = append([]ScoredPlayer(nil), curBench...)
+			}
+			return
+		}
+
+		g := groups[gIdx]
+		cands := g.candidates
+
+		if curCost+minCostSuffix[gIdx] > remBudget {
+			return
+		}
+		if bestScore >= 0 && curScore+maxScoreSuffix[gIdx] < bestScore-1e-9 {
+			return
+		}
+
+		if g.need == 1 {
+			for _, p := range cands {
+				cost := curCost + p.Player.NowCost
+				if cost+minCostSuffix[gIdx+1] > remBudget {
+					continue
+				}
+				if tc[p.Player.Team] >= 3 {
+					continue
+				}
+				tc[p.Player.Team]++
+				search(gIdx+1, cost, curScore+p.Score, append(curBench, p))
+				tc[p.Player.Team]--
+			}
+		} else if g.need == 2 {
+			for i := 0; i < len(cands); i++ {
+				p1 := cands[i]
+				if tc[p1.Player.Team] >= 3 {
+					continue
+				}
+				tc[p1.Player.Team]++
+
+				for j := i + 1; j < len(cands); j++ {
+					p2 := cands[j]
+					if tc[p2.Player.Team] >= 3 {
+						continue
+					}
+					cost := curCost + p1.Player.NowCost + p2.Player.NowCost
+					if cost+minCostSuffix[gIdx+1] > remBudget {
+						continue
+					}
+					tc[p2.Player.Team]++
+					search(gIdx+1, cost, curScore+p1.Score+p2.Score, append(curBench, p1, p2))
+					tc[p2.Player.Team]--
+				}
+
+				tc[p1.Player.Team]--
+			}
+		}
+	}
+
+	search(0, 0, 0.0, nil)
+
+	if len(bestBench) == 0 {
+		return fallbackFillBench(byPosCostAsc, xiIDs, teamCount, benchNeeds, remBudget)
+	}
+
+	var gkBench []ScoredPlayer
+	var outfieldBench []ScoredPlayer
+	for _, p := range bestBench {
+		if p.Player.ElementType == PosGK {
+			gkBench = append(gkBench, p)
+		} else {
+			outfieldBench = append(outfieldBench, p)
+		}
+	}
+	sort.Slice(outfieldBench, func(i, j int) bool {
+		return outfieldBench[i].Score > outfieldBench[j].Score
+	})
+
+	finalBench := append(gkBench, outfieldBench...)
+	for _, p := range finalBench {
+		xiIDs[p.Player.ID] = true
+		teamCount[p.Player.Team]++
+	}
+
+	return finalBench
+}
+
+func fallbackFillBench(byPosCostAsc map[int][]ScoredPlayer, xiIDs map[int]bool, teamCount map[int]int, benchNeeds map[int]int, remBudget int) []ScoredPlayer {
+	var bench []ScoredPlayer
+	rem := float64(remBudget)
+	for _, pos := range []int{PosGK, PosDEF, PosMID, PosFWD} {
+		pool := byPosCostAsc[pos]
 		need := benchNeeds[pos]
 		cnt := 0
 		for _, p := range pool {
@@ -660,7 +839,6 @@ func fillBench(byPosCostAsc, byPosScoreDesc map[int][]ScoredPlayer, xiIDs map[in
 			cnt++
 		}
 	}
-
 	return bench
 }
 

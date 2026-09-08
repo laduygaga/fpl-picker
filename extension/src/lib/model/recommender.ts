@@ -559,8 +559,7 @@ function fillBench(
   xiPosCounts: Record<number, number>,
   remainingBudgetTenths: number
 ): ScoredPlayer[] {
-  const bench: ScoredPlayer[] = [];
-  let rem = remainingBudgetTenths;
+  const remBudget = Math.floor(remainingBudgetTenths);
 
   const benchNeeds: Record<number, number> = {
     [PosGK]: SQUAD_SLOTS[PosGK] - (xiPosCounts[PosGK] || 0),
@@ -569,14 +568,170 @@ function fillBench(
     [PosFWD]: SQUAD_SLOTS[PosFWD] - (xiPosCounts[PosFWD] || 0),
   };
 
-  let totalNeed = 0;
-  Object.values(benchNeeds).forEach((need) => (totalNeed += need));
+  interface PosGroup {
+    pos: number;
+    need: number;
+    candidates: ScoredPlayer[];
+  }
 
-  const sortByScore = totalNeed > 0 && rem / totalNeed > 50;
+  const groups: PosGroup[] = [];
+  const positions = [PosGK, PosDEF, PosMID, PosFWD];
+
+  for (const pos of positions) {
+    const need = benchNeeds[pos] || 0;
+    if (need <= 0) continue;
+
+    const filtered: ScoredPlayer[] = [];
+    const seen = new Set<number>();
+
+    const scoreDesc = byPosScoreDesc.get(pos) || [];
+    for (const p of scoreDesc) {
+      if (xiIds.has(p.player.id) || (teamCount.get(p.player.team) || 0) >= 3) continue;
+      if (p.player.now_cost > remBudget) continue;
+      filtered.push(p);
+      seen.add(p.player.id);
+    }
+
+    const costAsc = byPosCostAsc.get(pos) || [];
+    for (const p of costAsc) {
+      if (seen.has(p.player.id) || xiIds.has(p.player.id) || (teamCount.get(p.player.team) || 0) >= 3) continue;
+      if (p.player.now_cost > remBudget) continue;
+      filtered.push(p);
+      seen.add(p.player.id);
+    }
+
+    if (filtered.length > 25) {
+      filtered.sort((a, b) => b.score - a.score);
+      const topByScore = filtered.slice(0, 20);
+      const rest = filtered.slice(20);
+      rest.sort((a, b) => a.player.now_cost - b.player.now_cost);
+      const candidates = [...topByScore, ...rest.slice(0, 5)];
+      candidates.sort((a, b) => b.score - a.score);
+      groups.push({ pos, need, candidates });
+    } else {
+      groups.push({ pos, need, candidates: filtered });
+    }
+  }
+
+  if (groups.length === 0) return [];
+
+  const minCostSuffix: number[] = new Array(groups.length + 1).fill(0);
+  const maxScoreSuffix: number[] = new Array(groups.length + 1).fill(0);
+
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const need = groups[i].need;
+    const candidates = groups[i].candidates;
+    let minCost = 0;
+    let maxScore = 0;
+
+    if (candidates.length >= need) {
+      const costs = candidates.map((p) => p.player.now_cost).sort((a, b) => a - b);
+      const scores = candidates.map((p) => p.score).sort((a, b) => b - a);
+      for (let k = 0; k < need; k++) {
+        minCost += costs[k];
+        maxScore += scores[k];
+      }
+    }
+    minCostSuffix[i] = minCostSuffix[i + 1] + minCost;
+    maxScoreSuffix[i] = maxScoreSuffix[i + 1] + maxScore;
+  }
+
+  let bestScore = -1;
+  let bestCost = Number.MAX_SAFE_INTEGER;
+  let bestBench: ScoredPlayer[] = [];
+
+  const tc = new Map<number, number>(teamCount);
+
+  function search(gIdx: number, curCost: number, curScore: number, curBench: ScoredPlayer[]) {
+    if (gIdx === groups.length) {
+      if (curScore > bestScore + 1e-9 || (Math.abs(curScore - bestScore) <= 1e-9 && curCost < bestCost)) {
+        bestScore = curScore;
+        bestCost = curCost;
+        bestBench = [...curBench];
+      }
+      return;
+    }
+
+    const g = groups[gIdx];
+    const cands = g.candidates;
+
+    if (curCost + minCostSuffix[gIdx] > remBudget) return;
+    if (bestScore >= 0 && curScore + maxScoreSuffix[gIdx] < bestScore - 1e-9) return;
+
+    if (g.need === 1) {
+      for (const p of cands) {
+        const cost = curCost + p.player.now_cost;
+        if (cost + minCostSuffix[gIdx + 1] > remBudget) continue;
+        const currentTc = tc.get(p.player.team) || 0;
+        if (currentTc >= 3) continue;
+
+        tc.set(p.player.team, currentTc + 1);
+        search(gIdx + 1, cost, curScore + p.score, [...curBench, p]);
+        tc.set(p.player.team, currentTc);
+      }
+    } else if (g.need === 2) {
+      for (let i = 0; i < cands.length; i++) {
+        const p1 = cands[i];
+        const tc1 = tc.get(p1.player.team) || 0;
+        if (tc1 >= 3) continue;
+        tc.set(p1.player.team, tc1 + 1);
+
+        for (let j = i + 1; j < cands.length; j++) {
+          const p2 = cands[j];
+          const tc2 = tc.get(p2.player.team) || 0;
+          if (tc2 >= 3) continue;
+          const cost = curCost + p1.player.now_cost + p2.player.now_cost;
+          if (cost + minCostSuffix[gIdx + 1] > remBudget) continue;
+
+          tc.set(p2.player.team, tc2 + 1);
+          search(gIdx + 1, cost, curScore + p1.score + p2.score, [...curBench, p1, p2]);
+          tc.set(p2.player.team, tc2);
+        }
+
+        tc.set(p1.player.team, tc1);
+      }
+    }
+  }
+
+  search(0, 0, 0, []);
+
+  if (bestBench.length === 0) {
+    return fallbackFillBench(byPosCostAsc, xiIds, teamCount, benchNeeds, remBudget);
+  }
+
+  const gkBench: ScoredPlayer[] = [];
+  const outfieldBench: ScoredPlayer[] = [];
+  for (const p of bestBench) {
+    if (p.player.element_type === PosGK) {
+      gkBench.push(p);
+    } else {
+      outfieldBench.push(p);
+    }
+  }
+  outfieldBench.sort((a, b) => b.score - a.score);
+
+  const finalBench = [...gkBench, ...outfieldBench];
+  finalBench.forEach((p) => {
+    xiIds.add(p.player.id);
+    teamCount.set(p.player.team, (teamCount.get(p.player.team) || 0) + 1);
+  });
+
+  return finalBench;
+}
+
+function fallbackFillBench(
+  byPosCostAsc: Map<number, ScoredPlayer[]>,
+  xiIds: Set<number>,
+  teamCount: Map<number, number>,
+  benchNeeds: Record<number, number>,
+  remBudget: number
+): ScoredPlayer[] {
+  const bench: ScoredPlayer[] = [];
+  let rem = remBudget;
 
   [PosGK, PosDEF, PosMID, PosFWD].forEach((pos) => {
-    const pool = sortByScore ? byPosScoreDesc.get(pos) || [] : byPosCostAsc.get(pos) || [];
-    const need = benchNeeds[pos];
+    const pool = byPosCostAsc.get(pos) || [];
+    const need = benchNeeds[pos] || 0;
     let cnt = 0;
 
     for (const p of pool) {

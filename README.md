@@ -1,6 +1,6 @@
 # fpl-picker
 
-CLI tool that picks the best Fantasy Premier League squad for the next gameweek. Optimizes the starting XI first, then fills the bench with the cheapest eligible players.
+CLI tool that picks the best Fantasy Premier League squad for the next gameweek. Optimizes the starting XI first, then optimizes the bench using any remaining budget.
 
 ## How It Works
 
@@ -49,7 +49,7 @@ Use `-formula 2` or `-formula 3` to switch. The default is `1` (Balanced).
 
 ### XI-First Optimization
 
-The optimizer tries all 7 valid formations (3-4-3, 3-5-2, 4-3-3, 4-4-2, 4-5-1, 5-3-2, 5-4-1), maximizing the starting XI score while reserving budget for the cheapest possible bench. The bench composition is derived from formation — e.g., a 3-4-3 XI needs 2 extra DEF, 1 extra MID, and 0 extra FWD on the bench.
+The optimizer tries all 7 valid formations (3-4-3, 3-5-2, 4-3-3, 4-4-2, 4-5-1, 5-3-2, 5-4-1), maximizing the starting XI score while reserving budget for the bench. Any remaining budget after picking the XI is then spent to optimize the bench score. The bench composition is derived from formation — e.g., a 3-4-3 XI needs 2 extra DEF, 1 extra MID, and 0 extra FWD on the bench.
 
 Constraints: max 3 players per team, 15-man squad (1 GK + formation XI + bench).
 
