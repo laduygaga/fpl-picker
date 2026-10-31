@@ -64,16 +64,17 @@ jobs:
           cd android
           chmod +x gradlew
 
-      - name: Build Release APK
+      - name: Build Debug APK for Release
         run: |
           cd android
           yes | sdkmanager --licenses || true
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
 
-      - name: Create GitHub Release & Upload APK
+      - name: Create GitHub Release & Upload Signed Debug APK
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          files: android/app/build/outputs/apk/debug/app-debug.apk
           generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
