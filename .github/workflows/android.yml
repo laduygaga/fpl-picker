@@ -1,0 +1,80 @@
+name: Android CI/CD & Release
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: |
+          cd android
+          chmod +x gradlew
+
+      - name: Run Core Unit Tests & Assemble APK
+        run: |
+          cd android
+          export ANDROID_HOME=$HOME/android-sdk
+          mkdir -p $ANDROID_HOME/licenses
+          echo -e "d56f518747f45110f9ad9b71340fc802a4664fde\n24333f8a43b688d231bafee553b320d3f28cf0c4" > $ANDROID_HOME/licenses/android-sdk-license
+          ./gradlew test assembleDebug
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fpl-picker-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  release:
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: |
+          cd android
+          chmod +x gradlew
+
+      - name: Build Release APK
+        run: |
+          cd android
+          export ANDROID_HOME=$HOME/android-sdk
+          mkdir -p $ANDROID_HOME/licenses
+          echo -e "d56f518747f45110f9ad9b71340fc802a4664fde\n24333f8a43b688d231bafee553b320d3f28cf0c4" > $ANDROID_HOME/licenses/android-sdk-license
+          ./gradlew assembleRelease
+
+      - name: Create GitHub Release & Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
