@@ -1,0 +1,7 @@
+app.fplpicker.app-updated_navigation_xml-0 /home/duy/go/src/fpl-picker/android/app/build/generated/updated_navigation_xml/debug
+app.fplpicker.app-packageDebugResources-1 /home/duy/go/src/fpl-picker/android/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
+app.fplpicker.app-packageDebugResources-2 /home/duy/go/src/fpl-picker/android/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
+app.fplpicker.app-debug-3 /home/duy/go/src/fpl-picker/android/app/build/intermediates/merged_res/debug/mergeDebugResources
+app.fplpicker.app-debug-4 /home/duy/go/src/fpl-picker/android/app/src/debug/res
+app.fplpicker.app-main-5 /home/duy/go/src/fpl-picker/android/app/src/main/res
+gradleHome-0 /home/duy/.gradle
