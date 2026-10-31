@@ -31,6 +31,7 @@ jobs:
       - name: Run Core Unit Tests & Assemble APK
         run: |
           cd android
+          unset ANDROID_SDK_ROOT
           export ANDROID_HOME=$HOME/android-sdk
           mkdir -p $ANDROID_HOME/licenses
           echo -e "d56f518747f45110f9ad9b71340fc802a4664fde\n24333f8a43b688d231bafee553b320d3f28cf0c4" > $ANDROID_HOME/licenses/android-sdk-license
@@ -66,6 +67,7 @@ jobs:
       - name: Build Release APK
         run: |
           cd android
+          unset ANDROID_SDK_ROOT
           export ANDROID_HOME=$HOME/android-sdk
           mkdir -p $ANDROID_HOME/licenses
           echo -e "d56f518747f45110f9ad9b71340fc802a4664fde\n24333f8a43b688d231bafee553b320d3f28cf0c4" > $ANDROID_HOME/licenses/android-sdk-license
