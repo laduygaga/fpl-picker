@@ -132,6 +132,27 @@ class FplRepository(context: Context) {
         return json.decodeFromString(bodyStr)
     }
 
+    fun getMyEntryId(cookies: String): Int? {
+        try {
+            val request = Request.Builder()
+                .url("https://fantasy.premierleague.com/api/me/")
+                .header("Cookie", cookies)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
+                .build()
+
+            val response = client.newCall(request).execute()
+            val body = response.body?.string() ?: return null
+            if (!response.isSuccessful) return null
+
+            val root = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject
+            val player = root?.get("player") as? kotlinx.serialization.json.JsonObject
+            val entry = player?.get("entry")?.toString()?.toIntOrNull()
+            return entry
+        } catch (_: Exception) {
+            return null
+        }
+    }
+
     fun getMyTeam(teamId: Int, cookies: String): MyTeam {
         val request = Request.Builder()
             .url("https://fantasy.premierleague.com/api/my-team/$teamId/")
@@ -151,7 +172,6 @@ class FplRepository(context: Context) {
         val bodyStr = json.encodeToString(req)
         val requestBody = bodyStr.toRequestBody("application/json".toMediaType())
 
-        // Extract csrftoken from cookies if present
         val csrfToken = cookies.split(";").map { it.trim() }.find { it.startsWith("csrftoken=") }?.substringAfter("=")
 
         val requestBuilder = Request.Builder()

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed interface UiState {
     data object Initial : UiState
@@ -49,7 +50,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateBudget(newBudget: String) { _budget.value = newBudget }
     fun updateFormula(newFormula: String) { _formula.value = newFormula }
     fun updateTeamId(newTeamId: String) { _teamId.value = newTeamId }
-    fun updateCookies(newCookies: String) { _cookies.value = newCookies }
+    fun updateCookies(newCookies: String) {
+        _cookies.value = newCookies
+        if (newCookies.isNotBlank() && _teamId.value.isBlank()) {
+            autoDetectTeamId()
+        }
+    }
+
+    fun autoDetectTeamId(onResult: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val tid = repository.getMyEntryId(_cookies.value)
+                if (tid != null) {
+                    withContext(Dispatchers.Main) {
+                        _teamId.value = tid.toString()
+                        onResult?.invoke(true)
+                    }
+                } else {
+                    onResult?.invoke(false)
+                }
+            } catch (_: Exception) {
+                onResult?.invoke(false)
+            }
+        }
+    }
 
     private var cachedOptimal: SquadResult? = null
     private var cachedTransfers: List<TransferSuggestion> = emptyList()
@@ -116,11 +140,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val opt = cachedOptimal
 
         if (tid == null || tid <= 0) {
-            _uiState.value = UiState.Error("Please enter a valid FPL Team ID.")
+            _uiState.value = UiState.Error("Please log in or enter a valid FPL Team ID.")
             return
         }
         if (cookieStr.isBlank()) {
-            _uiState.value = UiState.Error("Please enter your FPL session cookies to apply changes.")
+            _uiState.value = UiState.Error("Please log into your FPL account first.")
             return
         }
         if (opt == null) {
@@ -130,7 +154,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch(Dispatchers.Default) {
             try {
-                // 1. Post transfers if any
                 if (cachedTransfers.isNotEmpty()) {
                     val transferReq = TransferRequest(
                         confirmed = true,
@@ -148,7 +171,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     repository.postTransfers(transferReq, cookieStr)
                 }
 
-                // 2. Refresh team and post lineup
                 val refreshedTeam = repository.getMyTeam(tid, cookieStr)
                 val bootstrap = repository.fetchBootstrap(true)
                 val scorer = Scorer(bootstrap.teams, repository.fetchFixtures(true), bootstrap.events, bootstrap.elements, _formula.value)

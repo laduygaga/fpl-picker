@@ -163,7 +163,7 @@ fun MainScreen(viewModel: MainViewModel) {
                         OutlinedTextField(
                             value = teamId,
                             onValueChange = { viewModel.updateTeamId(it) },
-                            label = { Text("Team ID (for transfers)", color = FplSubtext, fontSize = 11.sp) },
+                            label = { Text("Team ID", color = FplSubtext, fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -180,24 +180,20 @@ fun MainScreen(viewModel: MainViewModel) {
                             modifier = Modifier.weight(1f)
                         )
 
-                        OutlinedTextField(
-                            value = cookies,
-                            onValueChange = { viewModel.updateCookies(it) },
-                            label = { Text("Session Cookies", color = FplSubtext, fontSize = 11.sp) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = FplGreen,
-                                unfocusedBorderColor = FplBorder,
-                                focusedTextColor = FplText,
-                                unfocusedTextColor = FplText,
-                                focusedLabelColor = FplGreen,
-                                unfocusedLabelColor = FplSubtext,
-                                cursorColor = FplGreen,
-                                focusedContainerColor = FplDarkPurple,
-                                unfocusedContainerColor = FplDarkPurple
-                            ),
-                            modifier = Modifier.weight(1.3f)
-                        )
+                        var showLoginDialog by remember { mutableStateOf(false) }
+
+                        Button(
+                            onClick = { showLoginDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = FplCyan),
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.weight(1.3f).height(50.dp)
+                        ) {
+                            Text("🔑 Log in with FPL", color = FplPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+
+                        if (showLoginDialog) {
+                            LoginDialog(viewModel, onDismiss = { showLoginDialog = false })
+                        }
                     }
 
                     Button(
