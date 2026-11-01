@@ -3,13 +3,10 @@ package app.fplpicker.app.ui
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,19 +33,21 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
                                     val cookieManager = CookieManager.getInstance()
-                                    val cookies = cookieManager.getCookie("https://fantasy.premierleague.com") ?: ""
-                                    if (cookies.contains("pl_profile") || cookies.contains("sessionid")) {
+                                    val cookies = cookieManager.getCookie(url ?: "https://fantasy.premierleague.com") ?: ""
+                                    if (cookies.contains("pl_profile") || cookies.contains("sessionid") || cookies.contains("csrftoken")) {
                                         viewModel.updateCookies(cookies)
-                                        statusText = "✅ Login cookies captured successfully! Checking Team ID..."
+                                        statusText = "✅ Login cookies captured! Detecting Team ID..."
                                         viewModel.autoDetectTeamId { success ->
                                             if (success) {
                                                 statusText = "🎉 Team ID auto-detected! You can close this window."
+                                            } else {
+                                                statusText = "⚠️ Cookies saved. If Team ID is blank, enter it manually."
                                             }
                                         }
                                     }
                                 }
                             }
-                            loadUrl("https://fantasy.premierleague.com/a/login")
+                            loadUrl("https://fantasy.premierleague.com/")
                         }
                     },
                     modifier = Modifier.fillMaxWidth().weight(1f)
