@@ -34,15 +34,10 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                     super.onPageFinished(view, url)
                                     val cookieManager = CookieManager.getInstance()
                                     val cookies = cookieManager.getCookie(url ?: "https://fantasy.premierleague.com") ?: ""
-                                    if (cookies.contains("pl_profile") || cookies.contains("sessionid") || cookies.contains("csrftoken")) {
+                                    if (cookies.isNotBlank()) {
                                         viewModel.updateCookies(cookies)
-                                        statusText = "✅ Login cookies captured! Detecting Team ID..."
-                                        viewModel.autoDetectTeamId { success ->
-                                            if (success) {
-                                                statusText = "🎉 Team ID auto-detected! You can close this window."
-                                            } else {
-                                                statusText = "⚠️ Logged in! Please check your URL on FPL or type your Team ID (e.g. 123456) in the box."
-                                            }
+                                        if (cookies.contains("pl_profile") || cookies.contains("sessionid") || cookies.contains("csrftoken")) {
+                                            statusText = "✅ Login cookies captured successfully!\nCookies length: ${cookies.length}\nTap 'Done' and enter your Team ID."
                                         }
                                     }
                                 }
