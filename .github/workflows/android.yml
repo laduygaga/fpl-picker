@@ -34,14 +34,13 @@ jobs:
       - name: Run Core Unit Tests & Assemble APK
         run: |
           cd android
-          yes | sdkmanager --licenses || true
-          ./gradlew test assembleDebug
+          ./gradlew test assembleRelease
 
-      - name: Upload Debug APK Artifact
+      - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fpl-picker-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: fpl-picker-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
 
   release:
     needs: build-and-test
@@ -64,17 +63,17 @@ jobs:
           cd android
           chmod +x gradlew
 
-      - name: Build Debug APK for Release
+      - name: Build Release APK
         run: |
           cd android
-          yes | sdkmanager --licenses || true
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
-      - name: Create GitHub Release & Upload Signed Debug APK
+      - name: Create GitHub Release & Upload Signed Release APK
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          files: android/app/build/outputs/apk/release/app-release.apk
           generate_release_notes: true
           tag_name: ${{ github.ref_name }}
+          overwrite: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
