@@ -8,12 +8,21 @@ android {
     namespace = "app.fplpicker.app"
     compileSdk = 34
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("fpl-picker-release.jks")
+            storePassword = "fplpicker123"
+            keyAlias = "fplpicker"
+            keyPassword = "fplpicker123"
+        }
+    }
+
     defaultConfig {
         applicationId = "app.fplpicker"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -28,6 +37,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

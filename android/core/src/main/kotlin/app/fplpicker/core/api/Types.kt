@@ -40,13 +40,13 @@ data class Team(
     val id: Int,
     val name: String,
     val short_name: String,
-    val strength: Int = 3,
-    val strength_overall_home: Int = 3,
-    val strength_overall_away: Int = 3,
-    val strength_attack_home: Int = 3,
-    val strength_attack_away: Int = 3,
-    val strength_defence_home: Int = 3,
-    val strength_defence_away: Int = 3
+    val strength: Int? = 3,
+    val strength_overall_home: Int? = 3,
+    val strength_overall_away: Int? = 3,
+    val strength_attack_home: Int? = 3,
+    val strength_attack_away: Int? = 3,
+    val strength_defence_home: Int? = 3,
+    val strength_defence_away: Int? = 3
 )
 
 @Serializable
