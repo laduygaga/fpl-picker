@@ -67,10 +67,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         onResult?.invoke(true)
                     }
                 } else {
-                    onResult?.invoke(false)
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(false)
+                    }
                 }
             } catch (_: Exception) {
-                onResult?.invoke(false)
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(false)
+                }
             }
         }
     }
@@ -140,7 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val opt = cachedOptimal
 
         if (tid == null || tid <= 0) {
-            _uiState.value = UiState.Error("Please log in or enter a valid FPL Team ID.")
+            _uiState.value = UiState.Error("Please log in or enter your Team ID.")
             return
         }
         if (cookieStr.isBlank()) {

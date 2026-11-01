@@ -41,7 +41,7 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                             if (success) {
                                                 statusText = "🎉 Team ID auto-detected! You can close this window."
                                             } else {
-                                                statusText = "⚠️ Logged in! Please type your Team ID (e.g. 123456) in the box."
+                                                statusText = "⚠️ Logged in! Please check your URL on FPL or type your Team ID (e.g. 123456) in the box."
                                             }
                                         }
                                     }
