@@ -1,0 +1,9 @@
+app.fplpicker.core-pngs-0 /home/duy/go/src/fpl-picker/android/core/build/generated/res/pngs/debug
+app.fplpicker.core-updated_navigation_xml-1 /home/duy/go/src/fpl-picker/android/core/build/generated/updated_navigation_xml/debug
+app.fplpicker.core-mergeDebugResources-2 /home/duy/go/src/fpl-picker/android/core/build/intermediates/incremental/debug/mergeDebugResources/merged.dir
+app.fplpicker.core-mergeDebugResources-3 /home/duy/go/src/fpl-picker/android/core/build/intermediates/incremental/debug/mergeDebugResources/stripped.dir
+app.fplpicker.core-debug-4 /home/duy/go/src/fpl-picker/android/core/build/intermediates/merged_res/debug/mergeDebugResources
+app.fplpicker.core-debug-5 /home/duy/go/src/fpl-picker/android/core/build/intermediates/packaged_res/debug/packageDebugResources
+app.fplpicker.core-debug-6 /home/duy/go/src/fpl-picker/android/core/src/debug/res
+app.fplpicker.core-main-7 /home/duy/go/src/fpl-picker/android/core/src/main/res
+gradleHome-0 /home/duy/.gradle

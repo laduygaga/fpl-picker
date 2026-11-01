@@ -1,0 +1,16 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/duy/go/src/fpl-picker/android/core/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest14484394146325562664.xml:2:13-83
+INJECTED from /home/duy/go/src/fpl-picker/android/core/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest14484394146325562664.xml:2:13-83
+	package
+		INJECTED from /home/duy/go/src/fpl-picker/android/core/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest14484394146325562664.xml
+	xmlns:android
+		ADDED from /home/duy/go/src/fpl-picker/android/core/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest14484394146325562664.xml:2:23-81
+uses-sdk
+INJECTED from /home/duy/go/src/fpl-picker/android/core/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest14484394146325562664.xml reason: use-sdk injection requested
+INJECTED from /home/duy/go/src/fpl-picker/android/core/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest14484394146325562664.xml
+INJECTED from /home/duy/go/src/fpl-picker/android/core/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest14484394146325562664.xml
+	android:targetSdkVersion
+		INJECTED from /home/duy/go/src/fpl-picker/android/core/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest14484394146325562664.xml
+	android:minSdkVersion
+		INJECTED from /home/duy/go/src/fpl-picker/android/core/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest14484394146325562664.xml

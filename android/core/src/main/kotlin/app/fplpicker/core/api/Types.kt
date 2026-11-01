@@ -80,3 +80,64 @@ data class Fixture(
     val finished: Boolean = false,
     val started: Boolean = false
 )
+
+@Serializable
+data class Pick(
+    val element: Int,
+    val position: Int,
+    val multiplier: Int,
+    val is_captain: Boolean,
+    val is_vice_captain: Boolean,
+    val selling_price: Int? = null,
+    val purchase_price: Int? = null,
+    val can_sub: Boolean? = null,
+    val has_played: Boolean? = null,
+    val is_sub: Boolean? = null,
+    val element_type: Int? = null
+)
+
+@Serializable
+data class MyTeamTransfers(
+    val bank: Int = 0,
+    val value: Int = 0,
+    val limit: Int? = null,
+    val made: Int = 0,
+    val status: String? = null
+)
+
+@Serializable
+data class MyTeam(
+    val picks: List<Pick> = emptyList(),
+    val transfers: MyTeamTransfers = MyTeamTransfers()
+)
+
+@Serializable
+data class TransferSuggestionDto(
+    val element_in: Int,
+    val element_out: Int,
+    val purchase_price: Int,
+    val selling_price: Int
+)
+
+@Serializable
+data class TransferRequest(
+    val confirmed: Boolean = false,
+    val entry: Int,
+    val event: Int,
+    val transfers: List<TransferSuggestionDto>,
+    val chip: String? = null
+)
+
+@Serializable
+data class LineupPick(
+    val element: Int,
+    val position: Int,
+    val is_captain: Boolean,
+    val is_vice_captain: Boolean
+)
+
+@Serializable
+data class LineupUpdate(
+    val picks: List<LineupPick>,
+    val chip: String? = null
+)

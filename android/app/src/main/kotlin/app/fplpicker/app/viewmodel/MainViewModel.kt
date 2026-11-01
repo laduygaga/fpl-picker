@@ -4,10 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.fplpicker.app.data.FplRepository
-import app.fplpicker.core.model.ScoredPlayer
-import app.fplpicker.core.model.Scorer
-import app.fplpicker.core.model.SquadResult
-import app.fplpicker.core.model.findBestSquad
+import app.fplpicker.core.api.MyTeam
+import app.fplpicker.core.api.TransferRequest
+import app.fplpicker.core.api.TransferSuggestionDto
+import app.fplpicker.core.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +19,11 @@ sealed interface UiState {
     data object Loading : UiState
     data class Success(
         val result: SquadResult,
+        val myTeam: MyTeam?,
+        val transfers: List<TransferSuggestion>,
         val nextGw: Int,
         val scoredCount: Int,
-        val isStale: Boolean = false
+        val message: String? = null
     ) : UiState
     data class Error(val message: String) : UiState
 }
@@ -38,13 +40,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _formula = MutableStateFlow("1")
     val formula: StateFlow<String> = _formula.asStateFlow()
 
-    fun updateBudget(newBudget: String) {
-        _budget.value = newBudget
-    }
+    private val _teamId = MutableStateFlow("")
+    val teamId: StateFlow<String> = _teamId.asStateFlow()
 
-    fun updateFormula(newFormula: String) {
-        _formula.value = newFormula
-    }
+    private val _cookies = MutableStateFlow("")
+    val cookies: StateFlow<String> = _cookies.asStateFlow()
+
+    fun updateBudget(newBudget: String) { _budget.value = newBudget }
+    fun updateFormula(newFormula: String) { _formula.value = newFormula }
+    fun updateTeamId(newTeamId: String) { _teamId.value = newTeamId }
+    fun updateCookies(newCookies: String) { _cookies.value = newCookies }
+
+    private var cachedOptimal: SquadResult? = null
+    private var cachedTransfers: List<TransferSuggestion> = emptyList()
+    private var cachedNextGw: Int = 1
 
     fun optimizeSquad(fresh: Boolean = false) {
         viewModelScope.launch(Dispatchers.Default) {
@@ -52,9 +61,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val budgetVal = _budget.value.toDoubleOrNull() ?: 100.0
                 val budgetTenths = (budgetVal * 10).toInt()
+                val tid = _teamId.value.toIntOrNull()
 
                 val bootstrap = repository.fetchBootstrap(fresh)
                 val fixtures = repository.fetchFixtures(fresh)
+
+                val myTeam = if (tid != null && _cookies.value.isNotBlank()) {
+                    try { repository.getMyTeam(tid, _cookies.value) } catch (_: Exception) { null }
+                } else null
 
                 val scorer = Scorer(
                     teams = bootstrap.teams,
@@ -68,19 +82,146 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val pairings = scorer.getFixturePairings()
 
                 val optimal = findBestSquad(scoredPlayers, budgetTenths, pairings)
+                cachedOptimal = optimal
+                cachedNextGw = scorer.getNextEventId()
+
+                val idToTeam = bootstrap.elements.associate { it.id to it.team }
+                val scoredById = scoredPlayers.associateBy { it.player.id }
+
+                val transfers = if (myTeam != null) {
+                    planTransfers(myTeam, optimal, 4, idToTeam, scoredById)
+                } else emptyList()
+                cachedTransfers = transfers
 
                 if (optimal.starters.isEmpty()) {
-                    _uiState.value = UiState.Error("No valid squad found. Check budget or fixture data.")
+                    _uiState.value = UiState.Error("No valid squad found. Check budget.")
                 } else {
                     _uiState.value = UiState.Success(
                         result = optimal,
-                        nextGw = scorer.getNextEventId(),
+                        myTeam = myTeam,
+                        transfers = transfers,
+                        nextGw = cachedNextGw,
                         scoredCount = scoredPlayers.size
                     )
                 }
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Unknown error occurred during optimization.")
+                _uiState.value = UiState.Error(e.message ?: "Unknown error occurred.")
             }
         }
     }
+
+    fun applyChanges() {
+        val tid = _teamId.value.toIntOrNull()
+        val cookieStr = _cookies.value
+        val opt = cachedOptimal
+
+        if (tid == null || tid <= 0) {
+            _uiState.value = UiState.Error("Please enter a valid FPL Team ID.")
+            return
+        }
+        if (cookieStr.isBlank()) {
+            _uiState.value = UiState.Error("Please enter your FPL session cookies to apply changes.")
+            return
+        }
+        if (opt == null) {
+            _uiState.value = UiState.Error("Please run 'Optimize Squad' first.")
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                // 1. Post transfers if any
+                if (cachedTransfers.isNotEmpty()) {
+                    val transferReq = TransferRequest(
+                        confirmed = true,
+                        entry = tid,
+                        event = cachedNextGw,
+                        transfers = cachedTransfers.map { t ->
+                            TransferSuggestionDto(
+                                element_in = t.inPlayer.player.id,
+                                element_out = t.out.player.id,
+                                purchase_price = t.purchasePrice,
+                                selling_price = t.sellingPrice
+                            )
+                        }
+                    )
+                    repository.postTransfers(transferReq, cookieStr)
+                }
+
+                // 2. Refresh team and post lineup
+                val refreshedTeam = repository.getMyTeam(tid, cookieStr)
+                val bootstrap = repository.fetchBootstrap(true)
+                val scorer = Scorer(bootstrap.teams, repository.fetchFixtures(true), bootstrap.events, bootstrap.elements, _formula.value)
+                val allScored = scorer.scoreAll(bootstrap.elements)
+                val scoredById = allScored.associateBy { it.player.id }
+
+                val current15 = refreshedTeam.picks.mapNotNull { scoredById[it.element] }
+                val postResult = bestXIFromSquad(current15)
+                val lineupUpdate = planLineup(postResult)
+
+                repository.postLineup(tid, lineupUpdate, cookieStr)
+
+                val currentState = _uiState.value
+                if (currentState is UiState.Success) {
+                    _uiState.value = currentState.copy(message = "✅ Applied successfully to FPL!")
+                }
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error("Failed to apply: ${e.message}")
+            }
+        }
+    }
+}
+
+fun bestXIFromSquad(squad: List<ScoredPlayer>): SquadResult {
+    val byPos = mutableMapOf<Int, MutableList<ScoredPlayer>>()
+    listOf(POS_GK, POS_DEF, POS_MID, POS_FWD).forEach { byPos[it] = mutableListOf() }
+    squad.forEach { byPos[it.player.element_type]?.add(it) }
+    byPos.values.forEach { it.sortByDescending { sp -> sp.score } }
+
+    var bestStarters = listOf<ScoredPlayer>()
+    var bestFormation = ""
+    var maxScore = -1.0
+
+    for (fm in VALID_FORMATIONS) {
+        val needs = mapOf(POS_GK to fm.gk, POS_DEF to fm.def, POS_MID to fm.mid, POS_FWD to fm.fwd)
+        var valid = true
+        for (pos in listOf(POS_GK, POS_DEF, POS_MID, POS_FWD)) {
+            if ((byPos[pos]?.size ?: 0) < needs[pos]!!) valid = false
+        }
+        if (!valid) continue
+
+        val trial = mutableListOf<ScoredPlayer>()
+        var score = 0.0
+        listOf(POS_GK, POS_DEF, POS_MID, POS_FWD).forEach { pos ->
+            val n = needs[pos]!!
+            val pool = byPos[pos]!!
+            for (j in 0 until n) {
+                trial.add(pool[j])
+                score += pool[j].score
+            }
+        }
+        if (score > maxScore) {
+            maxScore = score
+            bestStarters = trial
+            bestFormation = fm.name
+        }
+    }
+
+    val starterIds = bestStarters.map { it.player.id }.toSet()
+    val bench = squad.filter { !starterIds.contains(it.player.id) }.sortedByDescending { it.score }
+    val (cap, vc) = pickCaptains(bestStarters)
+    val xiCost = bestStarters.sumOf { it.player.now_cost }
+    val totalCost = xiCost + bench.sumOf { it.player.now_cost }
+
+    return SquadResult(
+        formation = bestFormation,
+        starters = bestStarters,
+        bench = bench,
+        captain = cap,
+        viceCaptain = vc,
+        totalScore = maxScore,
+        xiCost = xiCost / 10.0,
+        totalCost = totalCost / 10.0,
+        budget = totalCost / 10.0
+    )
 }

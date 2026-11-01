@@ -1,13 +1,14 @@
 package app.fplpicker.app.data
 
 import android.content.Context
-import app.fplpicker.core.api.BootstrapStaticResponse
-import app.fplpicker.core.api.Fixture
+import app.fplpicker.core.api.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -129,5 +130,70 @@ class FplRepository(context: Context) {
         metaFile.writeText(json.encodeToString(CacheMeta(System.currentTimeMillis(), etag)))
 
         return json.decodeFromString(bodyStr)
+    }
+
+    fun getMyTeam(teamId: Int, cookies: String): MyTeam {
+        val request = Request.Builder()
+            .url("https://fantasy.premierleague.com/api/my-team/$teamId/")
+            .header("Cookie", cookies)
+            .header("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
+            .build()
+
+        val response = client.newCall(request).execute()
+        val body = response.body?.string() ?: throw RuntimeException("Empty response from my-team")
+        if (!response.isSuccessful) {
+            throw RuntimeException("Failed to fetch my-team: HTTP ${response.code} - $body")
+        }
+        return json.decodeFromString(body)
+    }
+
+    fun postTransfers(req: TransferRequest, cookies: String): String {
+        val bodyStr = json.encodeToString(req)
+        val requestBody = bodyStr.toRequestBody("application/json".toMediaType())
+
+        // Extract csrftoken from cookies if present
+        val csrfToken = cookies.split(";").map { it.trim() }.find { it.startsWith("csrftoken=") }?.substringAfter("=")
+
+        val requestBuilder = Request.Builder()
+            .url("https://fantasy.premierleague.com/api/transfers/")
+            .header("Cookie", cookies)
+            .header("Content-Type", "application/json")
+            .header("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
+            .post(requestBody)
+
+        if (csrfToken != null) {
+            requestBuilder.header("X-CSRFToken", csrfToken)
+        }
+
+        val response = client.newCall(requestBuilder.build()).execute()
+        val body = response.body?.string() ?: ""
+        if (!response.isSuccessful) {
+            throw RuntimeException("Transfer request failed: HTTP ${response.code} - $body")
+        }
+        return body
+    }
+
+    fun postLineup(teamId: Int, lineup: LineupUpdate, cookies: String): String {
+        val bodyStr = json.encodeToString(lineup)
+        val requestBody = bodyStr.toRequestBody("application/json".toMediaType())
+        val csrfToken = cookies.split(";").map { it.trim() }.find { it.startsWith("csrftoken=") }?.substringAfter("=")
+
+        val requestBuilder = Request.Builder()
+            .url("https://fantasy.premierleague.com/api/my-team/$teamId/")
+            .header("Cookie", cookies)
+            .header("Content-Type", "application/json")
+            .header("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
+            .post(requestBody)
+
+        if (csrfToken != null) {
+            requestBuilder.header("X-CSRFToken", csrfToken)
+        }
+
+        val response = client.newCall(requestBuilder.build()).execute()
+        val body = response.body?.string() ?: ""
+        if (!response.isSuccessful) {
+            throw RuntimeException("Lineup update failed: HTTP ${response.code} - $body")
+        }
+        return body
     }
 }

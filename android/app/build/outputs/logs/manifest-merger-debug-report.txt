@@ -4,6 +4,7 @@ ADDED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:
 INJECTED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:2:1-19:12
 INJECTED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:2:1-19:12
 INJECTED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:2:1-19:12
+MERGED from [:core] /home/duy/go/src/fpl-picker/android/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.material3:material3-android:1.2.1] /home/duy/.gradle/caches/9.6.0/transforms/2507ece0ff22d5094b61a707e24afa47/transformed/material3-release/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.compose.material:material-ripple-android:1.6.5] /home/duy/.gradle/caches/9.6.0/transforms/2278b7cce59f45511fa7ed352386ebec/transformed/material-ripple-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.material:material-icons-core-android:1.6.5] /home/duy/.gradle/caches/9.6.0/transforms/66c07967933454dc4d0633ac38173c5e/transformed/material-icons-core-release/AndroidManifest.xml:2:1-7:12
@@ -113,6 +114,8 @@ uses-sdk
 INJECTED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml
 INJECTED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml
+MERGED from [:core] /home/duy/go/src/fpl-picker/android/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:5:5-44
+MERGED from [:core] /home/duy/go/src/fpl-picker/android/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.material3:material3-android:1.2.1] /home/duy/.gradle/caches/9.6.0/transforms/2507ece0ff22d5094b61a707e24afa47/transformed/material3-release/AndroidManifest.xml:20:5-44
 MERGED from [androidx.compose.material3:material3-android:1.2.1] /home/duy/.gradle/caches/9.6.0/transforms/2507ece0ff22d5094b61a707e24afa47/transformed/material3-release/AndroidManifest.xml:20:5-44
 MERGED from [androidx.compose.material:material-ripple-android:1.6.5] /home/duy/.gradle/caches/9.6.0/transforms/2278b7cce59f45511fa7ed352386ebec/transformed/material-ripple-release/AndroidManifest.xml:5:5-44

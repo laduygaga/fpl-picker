@@ -3,15 +3,15 @@
 3    package="app.fplpicker" >
 4
 5    <uses-sdk
-5-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:5:5-7:41
+5-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:5:5-7:41
 6        android:minSdkVersion="26"
-6-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:6:9-35
+6-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:6:9-35
 7        android:targetSdkVersion="34" />
-7-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:7:9-38
+7-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:7:9-38
 8
 9    <uses-permission android:name="android.permission.INTERNET" />
-9-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:9:5-67
-9-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:9:22-64
+9-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:9:5-67
+9-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:9:22-64
 10
 11    <permission
 11-->[androidx.core:core:1.12.0] /home/duy/.gradle/caches/9.6.0/transforms/e5357333e987cb9190e88db666c770cf/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
@@ -25,33 +25,33 @@
 15-->[androidx.core:core:1.12.0] /home/duy/.gradle/caches/9.6.0/transforms/e5357333e987cb9190e88db666c770cf/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
 16
 17    <application
-17-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:11:5-25:19
+17-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:11:5-25:19
 18        android:allowBackup="true"
-18-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:12:9-35
+18-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:12:9-35
 19        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
 19-->[androidx.core:core:1.12.0] /home/duy/.gradle/caches/9.6.0/transforms/e5357333e987cb9190e88db666c770cf/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 20        android:debuggable="true"
 21        android:label="FPL Picker"
-21-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:13:9-35
+21-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:13:9-35
 22        android:supportsRtl="true"
-22-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:14:9-35
+22-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:14:9-35
 23        android:theme="@style/Theme.FplPicker" >
-23-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:15:9-47
+23-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:15:9-47
 24        <activity
-24-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:16:9-24:20
+24-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:16:9-24:20
 25            android:name="app.fplpicker.app.MainActivity"
-25-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:17:13-58
+25-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:17:13-58
 26            android:exported="true" >
-26-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:18:13-36
+26-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:18:13-36
 27            <intent-filter>
-27-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:19:13-23:29
+27-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:19:13-23:29
 28                <action android:name="android.intent.action.MAIN" />
-28-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:20:17-69
-28-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:20:25-66
+28-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:20:17-69
+28-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:20:25-66
 29
 30                <category android:name="android.intent.category.LAUNCHER" />
-30-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:22:17-77
-30-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest16919453752689020511.xml:22:27-74
+30-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:22:17-77
+30-->/home/duy/go/src/fpl-picker/android/app/build/intermediates/tmp/manifest/test/debug/tempFile2ProcessTestManifest9256571856504604978.xml:22:27-74
 31            </intent-filter>
 32        </activity>
 33        <activity

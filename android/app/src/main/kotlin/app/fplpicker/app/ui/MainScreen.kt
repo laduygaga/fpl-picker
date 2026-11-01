@@ -1,7 +1,7 @@
 package app.fplpicker.app.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,6 +19,7 @@ import app.fplpicker.app.viewmodel.MainViewModel
 import app.fplpicker.app.viewmodel.UiState
 import app.fplpicker.core.model.ScoredPlayer
 import app.fplpicker.core.model.SquadResult
+import app.fplpicker.core.model.TransferSuggestion
 
 val FplPurple = Color(0xFF38003C)
 val FplDarkPurple = Color(0xFF240029)
@@ -36,8 +37,10 @@ fun MainScreen(viewModel: MainViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val formula by viewModel.formula.collectAsState()
+    val teamId by viewModel.teamId.collectAsState()
+    val cookies by viewModel.cookies.collectAsState()
 
-    var selectedTab by remember { mutableStateOf(0) } // 0 = XI & Bench, 1 = Settings/Info
+    var selectedTab by remember { mutableStateOf(0) } // 0 = XI & Bench, 1 = Transfers
 
     Scaffold(
         topBar = {
@@ -108,7 +111,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                 focusedContainerColor = FplDarkPurple,
                                 unfocusedContainerColor = FplDarkPurple
                             ),
-                            modifier = Modifier.weight(1.1f)
+                            modifier = Modifier.weight(1f)
                         )
 
                         var expanded by remember { mutableStateOf(false) }
@@ -117,7 +120,7 @@ fun MainScreen(viewModel: MainViewModel) {
                         ExposedDropdownMenuBox(
                             expanded = expanded,
                             onExpandedChange = { expanded = !expanded },
-                            modifier = Modifier.weight(1.9f)
+                            modifier = Modifier.weight(1.3f)
                         ) {
                             OutlinedTextField(
                                 value = formulaNames[formula] ?: "1 - Balanced",
@@ -156,6 +159,47 @@ fun MainScreen(viewModel: MainViewModel) {
                         }
                     }
 
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = teamId,
+                            onValueChange = { viewModel.updateTeamId(it) },
+                            label = { Text("Team ID (for transfers)", color = FplSubtext, fontSize = 11.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = FplGreen,
+                                unfocusedBorderColor = FplBorder,
+                                focusedTextColor = FplText,
+                                unfocusedTextColor = FplText,
+                                focusedLabelColor = FplGreen,
+                                unfocusedLabelColor = FplSubtext,
+                                cursorColor = FplGreen,
+                                focusedContainerColor = FplDarkPurple,
+                                unfocusedContainerColor = FplDarkPurple
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        OutlinedTextField(
+                            value = cookies,
+                            onValueChange = { viewModel.updateCookies(it) },
+                            label = { Text("Session Cookies", color = FplSubtext, fontSize = 11.sp) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = FplGreen,
+                                unfocusedBorderColor = FplBorder,
+                                focusedTextColor = FplText,
+                                unfocusedTextColor = FplText,
+                                focusedLabelColor = FplGreen,
+                                unfocusedLabelColor = FplSubtext,
+                                cursorColor = FplGreen,
+                                focusedContainerColor = FplDarkPurple,
+                                unfocusedContainerColor = FplDarkPurple
+                            ),
+                            modifier = Modifier.weight(1.3f)
+                        )
+                    }
+
                     Button(
                         onClick = { viewModel.optimizeSquad(false) },
                         colors = ButtonDefaults.buttonColors(containerColor = FplGreen),
@@ -167,12 +211,30 @@ fun MainScreen(viewModel: MainViewModel) {
                 }
             }
 
+            // Tabs
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = FplDarkPurple,
+                contentColor = FplGreen
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Starting XI & Bench", color = if (selectedTab == 0) FplGreen else FplSubtext, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Transfers", color = if (selectedTab == 1) FplGreen else FplSubtext, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                )
+            }
+
             // Content Area
-            Box(modifier = Modifier.fillMaxSize().weight(1f).padding(horizontal = 12.dp)) {
+            Box(modifier = Modifier.fillMaxSize().weight(1f).padding(12.dp)) {
                 when (val state = uiState) {
                     is UiState.Initial -> {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Tap 'Optimize Squad' to generate optimal XI & bench.", color = FplSubtext, fontSize = 13.sp)
+                            Text("Tap 'Optimize Squad' to run optimizer...", color = FplSubtext, fontSize = 13.sp)
                         }
                     }
                     is UiState.Loading -> {
@@ -185,11 +247,26 @@ fun MainScreen(viewModel: MainViewModel) {
                     }
                     is UiState.Error -> {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Error: ${state.message}", color = Color(0xFFFF5555), fontSize = 13.sp)
+                            Text("Error: ${state.message}", color = Color(0xFFFF5555), fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
                     }
                     is UiState.Success -> {
-                        SquadResultContent(state.result)
+                        if (state.message != null) {
+                            Surface(
+                                color = FplCardBg,
+                                shape = MaterialTheme.shapes.small,
+                                border = BorderStroke(1.dp, FplGreen),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                            ) {
+                                Text(state.message, color = FplGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(10.dp))
+                            }
+                        }
+
+                        if (selectedTab == 0) {
+                            SquadResultContent(state.result)
+                        } else {
+                            TransfersContent(state.transfers, onApply = { viewModel.applyChanges() })
+                        }
                     }
                 }
             }
@@ -255,6 +332,65 @@ fun SquadResultContent(res: SquadResult) {
 
         items(res.bench) { sp ->
             PlayerRow(sp, false, false)
+        }
+    }
+}
+
+@Composable
+fun TransfersContent(transfers: List<TransferSuggestion>, onApply: () -> Unit) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(bottom = 20.dp)
+    ) {
+        if (transfers.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                    Text("Enter Team ID and Cookies to generate transfer recommendations, or your squad is already optimal!", color = FplGreen, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        } else {
+            item {
+                Button(
+                    onClick = onApply,
+                    colors = ButtonDefaults.buttonColors(containerColor = FplPink),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth().height(42.dp)
+                ) {
+                    Text("⚡ Apply ${transfers.size} Transfer(s) & Lineup to FPL", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                }
+            }
+            item {
+                Text("PROPOSED TRANSFERS (${transfers.size})", color = FplGreen, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 4.dp))
+            }
+            items(transfers) { t ->
+                TransferItemRow(t)
+            }
+        }
+    }
+}
+
+@Composable
+fun TransferItemRow(t: TransferSuggestion) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = FplCardBg),
+        shape = MaterialTheme.shapes.small,
+        border = BorderStroke(1.dp, FplBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                Text("OUT: ${t.out.player.web_name} (£${String.format("%.1f", t.sellingPrice / 10.0)}M)", color = Color(0xFFFF5555), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("IN: ${t.inPlayer.player.web_name} (${t.inPlayer.teamName}, ${t.inPlayer.positionName}, £${String.format("%.1f", t.purchasePrice / 10.0)}M)", color = FplGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("+${String.format("%.3f", t.scoreUplift)}", color = FplGreen, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Score Uplift", color = FplSubtext, fontSize = 9.sp)
+            }
         }
     }
 }
