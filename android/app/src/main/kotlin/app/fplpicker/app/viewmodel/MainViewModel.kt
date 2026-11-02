@@ -41,7 +41,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _formula = MutableStateFlow("1")
     val formula: StateFlow<String> = _formula.asStateFlow()
 
-    private val _teamId = MutableStateFlow("")
+    private val _teamId = MutableStateFlow("2719554")
     val teamId: StateFlow<String> = _teamId.asStateFlow()
 
     private val _cookies = MutableStateFlow("")
