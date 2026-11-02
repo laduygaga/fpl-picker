@@ -24,7 +24,9 @@ sealed interface UiState {
         val transfers: List<TransferSuggestion>,
         val nextGw: Int,
         val scoredCount: Int,
-        val message: String? = null
+        val message: String? = null,
+        val players: List<app.fplpicker.core.api.Player> = emptyList(),
+        val teams: List<app.fplpicker.core.api.Team> = emptyList()
     ) : UiState
     data class Error(val message: String) : UiState
 }
@@ -135,7 +137,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         myTeam = myTeam,
                         transfers = transfers,
                         nextGw = cachedNextGw,
-                        scoredCount = scoredPlayers.size
+                        scoredCount = scoredPlayers.size,
+                        players = bootstrap.elements,
+                        teams = bootstrap.teams
                     )
                 }
             } catch (e: Exception) {

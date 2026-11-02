@@ -234,15 +234,27 @@ fun MainScreen(viewModel: MainViewModel) {
             Box(modifier = Modifier.fillMaxSize().weight(1f).padding(12.dp)) {
                 when (val state = uiState) {
                     is UiState.Initial -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Tap 'Optimize Squad' to run optimizer...", color = FplSubtext, fontSize = 13.sp)
+                        if (selectedTab == 1) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Tap 'Optimize Squad' to load your live team...", color = FplSubtext, fontSize = 13.sp)
+                            }
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Tap 'Optimize Squad' to run optimizer...", color = FplSubtext, fontSize = 13.sp)
+                            }
                         }
                     }
                     is UiState.Loading -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (selectedTab == 1) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(color = FplGreen)
-                                Text("Scoring players & running DP optimizer...", color = FplGreen, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            }
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    CircularProgressIndicator(color = FplGreen)
+                                    Text("Scoring players & running DP optimizer...", color = FplGreen, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                }
                             }
                         }
                     }
@@ -266,7 +278,7 @@ fun MainScreen(viewModel: MainViewModel) {
                         if (selectedTab == 0) {
                             SquadResultContent(state.result)
                         } else if (selectedTab == 1) {
-                            MyTeamContent(state.myTeam, state.result)
+                            MyTeamContent(state.myTeam, state.result, state.players, state.teams)
                         } else {
                             TransfersContent(state.transfers, onApply = { viewModel.applyChanges() })
                         }
@@ -460,7 +472,10 @@ fun PlayerRow(sp: ScoredPlayer, isC: Boolean, isVc: Boolean) {
 }
 
 @Composable
-fun MyTeamContent(myTeam: app.fplpicker.core.api.MyTeam?, res: SquadResult) {
+fun MyTeamContent(myTeam: app.fplpicker.core.api.MyTeam?, res: SquadResult, players: List<app.fplpicker.core.api.Player>, teams: List<app.fplpicker.core.api.Team>) {
+    val playerMap = players.associateBy { it.id }
+    val teamMap = teams.associateBy { it.id }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -493,6 +508,16 @@ fun MyTeamContent(myTeam: app.fplpicker.core.api.MyTeam?, res: SquadResult) {
             }
 
             items(myTeam.picks) { pick ->
+                val player = playerMap[pick.element]
+                val teamName = teamMap[player?.team]?.short_name ?: "???"
+                val posStr = when(player?.element_type) {
+                    1 -> "GK"
+                    2 -> "DEF"
+                    3 -> "MID"
+                    4 -> "FWD"
+                    else -> "POS"
+                }
+
                 Card(
                     colors = CardDefaults.cardColors(containerColor = FplCardBg),
                     shape = MaterialTheme.shapes.small,
@@ -504,11 +529,31 @@ fun MyTeamContent(myTeam: app.fplpicker.core.api.MyTeam?, res: SquadResult) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text("Player ID: ${pick.element} (Multiplier: ${pick.multiplier})", color = FplText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            val roleStr = if (pick.is_captain) "Captain (©)" else if (pick.is_vice_captain) "Vice-Captain (V)" else if (pick.multiplier > 0) "Starting XI" else "Bench"
-                            Text("Role: $roleStr", color = FplSubtext, fontSize = 11.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                            Surface(
+                                color = FplDarkPurple,
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(posStr, color = FplSubtext, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(player?.web_name ?: "Player #${pick.element}", color = FplText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    if (pick.is_captain) {
+                                        Surface(color = FplGreen, shape = MaterialTheme.shapes.extraSmall) {
+                                            Text("C", color = FplPurple, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 3.dp))
+                                        }
+                                    } else if (pick.is_vice_captain) {
+                                        Surface(color = FplPink, shape = MaterialTheme.shapes.extraSmall) {
+                                            Text("VC", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 3.dp))
+                                        }
+                                    }
+                                }
+                                val roleDesc = if (pick.multiplier > 0) "Starting XI" else "Bench"
+                                Text("$teamName • $roleDesc • £${String.format("%.1f", (player?.now_cost ?: 0) / 10.0)}M", color = FplSubtext, fontSize = 11.sp)
+                            }
                         }
+
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Buy: £${String.format("%.1f", (pick.purchase_price ?: 0) / 10.0)}M", color = FplGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Text("Sell: £${String.format("%.1f", ((pick.selling_price ?: pick.purchase_price) ?: 0) / 10.0)}M", color = FplSubtext, fontSize = 10.sp)
