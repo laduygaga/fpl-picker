@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "FPL Picker AI",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "XI-First FPL Squad Optimizer, Opponent-Conditioned Scoring Engine & Transfer Recommender",
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons/icon.svg",
+    "48": "icons/icon.svg",
+    "128": "icons/icon.svg"
   },
   "action": {
     "default_popup": "src/popup/popup.html",
