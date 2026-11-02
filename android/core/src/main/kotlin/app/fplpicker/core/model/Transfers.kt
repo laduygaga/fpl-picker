@@ -18,7 +18,8 @@ fun planTransfers(
     optimal: SquadResult,
     maxHits: Int = 4,
     idToTeam: Map<Int, Int>,
-    scoredById: Map<Int, ScoredPlayer>? = null
+    scoredById: Map<Int, ScoredPlayer>? = null,
+    ignoreMaxHits: Boolean = true
 ): List<TransferSuggestion> {
     if (current == null || current.picks.isEmpty()) return emptyList()
 
@@ -55,7 +56,7 @@ fun planTransfers(
     val used = BooleanArray(outgoing.size)
 
     val freeRemaining = maxOf(0, freeLimit - usedFree)
-    val maxByHits = maxOf(0, freeRemaining + (maxHits / 4))
+    val maxByHits = if (ignoreMaxHits || freeRemaining == 0) 15 else maxOf(0, freeRemaining + (maxHits / 4))
 
     for (inPlayer in incoming) {
         if (suggestions.size >= maxByHits) break
