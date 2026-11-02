@@ -22,21 +22,58 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
     var statusText by remember { mutableStateOf("Please log into your FPL account...") }
     val cookies by viewModel.cookies.collectAsState()
     val teamId by viewModel.teamId.collectAsState()
+    var manualTokenInput by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Log into FPL", color = FplText, fontWeight = FontWeight.Bold) },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().height(400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().height(440.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(statusText, color = FplSubtext, fontSize = 12.sp)
                 if (cookies.isNotBlank()) {
                     Surface(color = FplDarkPurple, shape = MaterialTheme.shapes.small) {
                         Column(modifier = Modifier.padding(8.dp)) {
-                            Text("🔑 Cookies Captured: ${cookies.take(40)}...", color = FplGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("🔑 Credentials / Cookies (${cookies.length} chars)", color = FplGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             Text("🏟️ Team ID: $teamId", color = FplCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
+
+                OutlinedTextField(
+                    value = manualTokenInput,
+                    onValueChange = { manualTokenInput = it },
+                    label = { Text("Or paste JWT / Bearer token here", fontSize = 10.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = FplGreen,
+                        unfocusedBorderColor = FplBorder,
+                        focusedTextColor = FplText,
+                        unfocusedTextColor = FplText,
+                        focusedLabelColor = FplGreen,
+                        unfocusedLabelColor = FplSubtext,
+                        focusedContainerColor = FplDarkPurple,
+                        unfocusedContainerColor = FplDarkPurple
+                    )
+                )
+
+                Button(
+                    onClick = {
+                        if (manualTokenInput.isNotBlank()) {
+                            viewModel.updateCookies(manualTokenInput.trim())
+                            statusText = "✅ Bearer token applied!"
+                            viewModel.autoDetectTeamId { success ->
+                                if (success) statusText = "🎉 Team ID auto-detected ($teamId)!"
+                                else statusText = "⚠️ Token saved, but Team ID detection failed. Check ID."
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FplGreen),
+                    modifier = Modifier.fillMaxWidth().height(36.dp)
+                ) {
+                    Text("Apply Token", color = FplPurple, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
                 AndroidView(
                     factory = { context ->
                         WebView(context).apply {
