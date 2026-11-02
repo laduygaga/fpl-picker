@@ -145,6 +145,7 @@ class FplRepository(context: Context) {
                         .url(u)
                         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
                         .header("Referer", "https://fantasy.premierleague.com/")
+                        .header("Accept", "application/json, text/plain, */*")
 
                     if (bearer.isNotBlank()) {
                         requestBuilder.header("x-api-authorization", "Bearer $bearer")
@@ -189,6 +190,7 @@ class FplRepository(context: Context) {
             .url("https://fantasy.premierleague.com/api/my-team/$teamId/")
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             .header("Referer", "https://fantasy.premierleague.com/")
+            .header("Accept", "application/json, text/plain, */*")
 
         if (bearer.isNotBlank()) {
             requestBuilder.header("x-api-authorization", "Bearer $bearer")
