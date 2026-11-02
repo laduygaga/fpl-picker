@@ -1,7 +1,7 @@
 .fpl-cache/
 .fpl-team.txt
 fpl-picker
-main
+# removed broad 'main' rule that ignored android/app/src/main/
 
 # Apply command artifacts (added for the `apply` subcommand)
 .credentials/

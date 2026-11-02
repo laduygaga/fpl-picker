@@ -94,7 +94,7 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /home/duy/.gradle/caches/9.
 		ADDED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:6:9-35
 	android:theme
 		ADDED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:9:9-47
-activity#app.fplpicker.app.MainActivity
+activity#app.fplpicker.MainActivity
 ADDED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:10:9-17:20
 	android:exported
 		ADDED from /home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:12:13-36

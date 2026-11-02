@@ -1,2 +1,2 @@
-app.fplpicker.app
+app.fplpicker
 style Theme_FplPicker

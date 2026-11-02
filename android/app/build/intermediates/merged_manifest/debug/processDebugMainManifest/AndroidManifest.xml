@@ -25,7 +25,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.FplPicker" >
         <activity
-            android:name="app.fplpicker.app.MainActivity"
+            android:name="app.fplpicker.MainActivity"
             android:exported="true" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

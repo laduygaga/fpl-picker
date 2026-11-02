@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "app.fplpicker.app"
+    namespace = "app.fplpicker"
     compileSdk = 34
 
     signingConfigs {

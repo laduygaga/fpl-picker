@@ -43,7 +43,7 @@
 26-->/home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:9:9-47
 27        <activity
 27-->/home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:10:9-17:20
-28            android:name="app.fplpicker.app.MainActivity"
+28            android:name="app.fplpicker.MainActivity"
 28-->/home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:11:13-41
 29            android:exported="true" >
 29-->/home/duy/go/src/fpl-picker/android/app/src/main/AndroidManifest.xml:12:13-36
