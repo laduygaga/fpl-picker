@@ -184,11 +184,12 @@ fun MainScreen(viewModel: MainViewModel) {
 
                         Button(
                             onClick = { showLoginDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = FplCyan),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (cookies.isNotBlank()) FplGreen else FplCyan),
                             shape = MaterialTheme.shapes.small,
                             modifier = Modifier.weight(1.3f).height(50.dp)
                         ) {
-                            Text("🔑 Log in with FPL", color = FplPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            val btnText = if (cookies.isNotBlank()) "✅ Logged In" else "🔑 Log in with FPL"
+                            Text(btnText, color = if (cookies.isNotBlank()) FplPurple else FplPurple, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
 
                         if (showLoginDialog) {
@@ -261,7 +262,7 @@ fun MainScreen(viewModel: MainViewModel) {
                         if (selectedTab == 0) {
                             SquadResultContent(state.result)
                         } else {
-                            TransfersContent(state.transfers, onApply = { viewModel.applyChanges() })
+                            TransfersContent(state.transfers, cookies, teamId, onApply = { viewModel.applyChanges() })
                         }
                     }
                 }
@@ -333,16 +334,30 @@ fun SquadResultContent(res: SquadResult) {
 }
 
 @Composable
-fun TransfersContent(transfers: List<TransferSuggestion>, onApply: () -> Unit) {
+fun TransfersContent(transfers: List<TransferSuggestion>, cookies: String, teamId: String, onApply: () -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(bottom = 20.dp)
     ) {
-        if (transfers.isEmpty()) {
+        if (cookies.isBlank() || teamId.isBlank()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = FplCardBg),
+                    shape = MaterialTheme.shapes.medium,
+                    border = BorderStroke(1.dp, FplBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("⚠️ Login & Team ID Required for Transfers", color = Color(0xFFFF5555), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("To view and apply your personalized transfer suggestions, please tap '🔑 Log in with FPL' above and enter your numeric Team ID.", color = FplSubtext, fontSize = 12.sp)
+                    }
+                }
+            }
+        } else if (transfers.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                    Text("Enter Team ID and Cookies to generate transfer recommendations, or your squad is already optimal!", color = FplGreen, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text("✨ Your squad is already aligned with the optimal pick! No transfers needed.", color = FplGreen, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         } else {
