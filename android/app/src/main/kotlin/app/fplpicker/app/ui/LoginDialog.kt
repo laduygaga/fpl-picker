@@ -22,56 +22,20 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
     var statusText by remember { mutableStateOf("Please log into your FPL account...") }
     val cookies by viewModel.cookies.collectAsState()
     val teamId by viewModel.teamId.collectAsState()
-    var manualTokenInput by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Log into FPL", color = FplText, fontWeight = FontWeight.Bold) },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().height(440.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().height(420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(statusText, color = FplSubtext, fontSize = 12.sp)
                 if (cookies.isNotBlank()) {
                     Surface(color = FplDarkPurple, shape = MaterialTheme.shapes.small) {
                         Column(modifier = Modifier.padding(8.dp)) {
-                            Text("🔑 Credentials / Cookies (${cookies.length} chars)", color = FplGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("🔑 Credentials Active (${cookies.length} chars)", color = FplGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             Text("🏟️ Team ID: $teamId", color = FplCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                }
-
-                OutlinedTextField(
-                    value = manualTokenInput,
-                    onValueChange = { manualTokenInput = it },
-                    label = { Text("Or paste JWT / Bearer token here", fontSize = 10.sp) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = FplGreen,
-                        unfocusedBorderColor = FplBorder,
-                        focusedTextColor = FplText,
-                        unfocusedTextColor = FplText,
-                        focusedLabelColor = FplGreen,
-                        unfocusedLabelColor = FplSubtext,
-                        focusedContainerColor = FplDarkPurple,
-                        unfocusedContainerColor = FplDarkPurple
-                    )
-                )
-
-                Button(
-                    onClick = {
-                        if (manualTokenInput.isNotBlank()) {
-                            viewModel.updateCookies(manualTokenInput.trim())
-                            statusText = "✅ Bearer token applied!"
-                            viewModel.autoDetectTeamId { success ->
-                                if (success) statusText = "🎉 Team ID auto-detected ($teamId)!"
-                                else statusText = "⚠️ Token saved, but Team ID detection failed. Check ID."
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = FplGreen),
-                    modifier = Modifier.fillMaxWidth().height(36.dp)
-                ) {
-                    Text("Apply Token", color = FplPurple, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
 
                 AndroidView(
@@ -79,9 +43,37 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                         WebView(context).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
+                            settings.loadsImagesAutomatically = true
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
+                                    view?.evaluateJavascript(
+                                        "(function() { " +
+                                        "  var token = ''; " +
+                                        "  for (var i = 0; i < localStorage.length; i++) { " +
+                                        "    var key = localStorage.key(i); " +
+                                        "    if (key && key.includes('oidc.user')) { " +
+                                        "      try { " +
+                                        "        var parsed = JSON.parse(localStorage.getItem(key)); " +
+                                        "        if (parsed && parsed.access_token) { token = parsed.access_token; break; } " +
+                                        "      } catch(e) {} " +
+                                        "    } " +
+                                        "  } " +
+                                        "  return token; " +
+                                        "})();"
+                                    ) { tokenVal ->
+                                        if (tokenVal != null && tokenVal.length > 10) {
+                                            val cleanToken = tokenVal.trim('"')
+                                            if (cleanToken.startsWith("eyJ")) {
+                                                viewModel.updateCookies(cleanToken)
+                                                statusText = "🎉 JWT Bearer token auto-captured!"
+                                                viewModel.autoDetectTeamId { success ->
+                                                    if (success) statusText = "🎉 Team ID auto-detected ($teamId)!"
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     val cookieManager = CookieManager.getInstance()
                                     val c1 = cookieManager.getCookie("https://fantasy.premierleague.com") ?: ""
                                     val c2 = cookieManager.getCookie("https://users.premierleague.com") ?: ""
@@ -90,8 +82,10 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                     val combined = listOf(c1, c2, c3, c4).filter { it.isNotBlank() }.joinToString("; ")
                                     
                                     if (combined.contains("pl_profile") || combined.contains("sessionid") || combined.contains("csrftoken") || combined.contains("idserv")) {
-                                        viewModel.updateCookies(combined)
-                                        viewModel.autoDetectTeamId()
+                                        if (!cookies.startsWith("eyJ")) {
+                                            viewModel.updateCookies(combined)
+                                            viewModel.autoDetectTeamId()
+                                        }
                                     }
                                 }
                             }
@@ -114,21 +108,21 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                         
                         if (combined.isNotBlank()) {
                             viewModel.updateCookies(combined)
-                            statusText = "🔄 Refreshed cookies (${combined.take(30)}...)!"
+                            statusText = "🔄 Refreshed session!"
                             viewModel.autoDetectTeamId { success ->
                                 if (success) {
                                     statusText = "🎉 Team ID auto-detected ($teamId)!"
                                 } else {
-                                    statusText = "⚠️ Got cookies but failed to get Team ID. Check login."
+                                    statusText = "⚠️ Session found, but Team ID fetch failed."
                                 }
                             }
                         } else {
-                            statusText = "⚠️ No cookies found. Please log in on the page first."
+                            statusText = "⚠️ No session found. Please log in on the page first."
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = FplCyan)
                 ) {
-                    Text("🔄 Refresh Cookies", color = FplPurple, fontWeight = FontWeight.Bold)
+                    Text("🔄 Refresh Session", color = FplPurple, fontWeight = FontWeight.Bold)
                 }
                 Button(
                     onClick = onDismiss,
