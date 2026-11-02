@@ -148,6 +148,7 @@ class FplRepository(context: Context) {
 
                     if (bearer.isNotBlank()) {
                         requestBuilder.header("x-api-authorization", "Bearer $bearer")
+                        requestBuilder.header("Authorization", "Bearer $bearer")
                     } else {
                         requestBuilder.header("Cookie", cookies)
                     }
@@ -191,6 +192,7 @@ class FplRepository(context: Context) {
 
         if (bearer.isNotBlank()) {
             requestBuilder.header("x-api-authorization", "Bearer $bearer")
+            requestBuilder.header("Authorization", "Bearer $bearer")
         } else {
             requestBuilder.header("Cookie", cookies)
             val csrfToken = cookies.split(";").map { it.trim() }.find { it.startsWith("csrftoken=") }?.substringAfter("=")
