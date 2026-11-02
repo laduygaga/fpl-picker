@@ -90,8 +90,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val bootstrap = repository.fetchBootstrap(fresh)
                 val fixtures = repository.fetchFixtures(fresh)
 
-                val myTeam = if (tid != null && _cookies.value.isNotBlank()) {
-                    try { repository.getMyTeam(tid, _cookies.value) } catch (_: Exception) { null }
+                val myTeam = if (tid != null) {
+                    try { repository.getMyTeam(tid, _cookies.value) } catch (e: Exception) { 
+                        android.util.Log.e("FplPicker", "Failed to fetch myTeam for tid=$tid with cookies len=${_cookies.value.length}: ${e.message}", e)
+                        null 
+                    }
                 } else null
 
                 val scorer = Scorer(
