@@ -48,7 +48,7 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                     }
                                 }
                             }
-                            loadUrl("https://fantasy.premierleague.com/a/login")
+                            loadUrl("https://users.premierleague.com/accounts/login/")
                         }
                     },
                     modifier = Modifier.fillMaxWidth().weight(1f)
