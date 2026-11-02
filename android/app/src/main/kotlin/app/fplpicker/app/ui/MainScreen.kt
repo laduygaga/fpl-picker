@@ -291,7 +291,7 @@ fun MainScreen(viewModel: MainViewModel) {
                         } else if (selectedTab == 1) {
                             MyTeamContent(state.myTeam, state.result, state.players, state.teams)
                         } else {
-                            TransfersContent(state.transfers, onApply = {})
+                            TransfersContent(state.transfers, onApply = { viewModel.applyChanges() })
                         }
                     }
                 }
