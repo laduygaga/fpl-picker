@@ -54,8 +54,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateTeamId(newTeamId: String) { _teamId.value = newTeamId }
     fun updateCookies(newCookies: String) {
         _cookies.value = newCookies
-        if (newCookies.isNotBlank() && _teamId.value.isBlank()) {
-            autoDetectTeamId()
+        if (newCookies.isNotBlank()) {
+            autoDetectTeamId { success ->
+                if (success) {
+                    val tid = _teamId.value.toIntOrNull()
+                    if (tid != null) {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            try {
+                                val team = repository.getMyTeam(tid, newCookies)
+                                val bootstrap = repository.fetchBootstrap(false)
+                                val fixtures = repository.fetchFixtures(false)
+                                val scorer = Scorer(bootstrap.teams, fixtures, bootstrap.events, bootstrap.elements, _formula.value)
+                                val scoredPlayers = scorer.scoreAll(bootstrap.elements)
+                                val optimal = findBestSquad(scoredPlayers, (_budget.value.toDoubleOrNull() ?: 100.0).times(10).toInt(), scorer.getFixturePairings())
+                                val transfers = planTransfers(team, optimal, 4, bootstrap.elements.associate { it.id to it.team }, scoredPlayers.associateBy { it.player.id })
+                                cachedOptimal = optimal
+                                cachedTransfers = transfers
+                                cachedNextGw = scorer.getNextEventId()
+                                withContext(Dispatchers.Main) {
+                                    _uiState.value = UiState.Success(
+                                        result = optimal,
+                                        myTeam = team,
+                                        transfers = transfers,
+                                        nextGw = cachedNextGw,
+                                        scoredCount = scoredPlayers.size,
+                                        players = bootstrap.elements,
+                                        teams = bootstrap.teams,
+                                        message = "🎉 Successfully connected and loaded live team!"
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("FplPicker", "Preload live team failed: ${e.message}", e)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
