@@ -342,7 +342,7 @@ fun TransfersContent(transfers: List<TransferSuggestion>, onApply: () -> Unit) {
         if (transfers.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                    Text("Enter Team ID and Cookies to generate transfer recommendations, or your squad is already optimal!", color = FplGreen, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text("Your current squad is already optimal or Team ID / Login cookies are required to fetch and compare your live squad for transfers.", color = FplSubtext, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         } else {
