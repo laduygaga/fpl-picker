@@ -134,20 +134,25 @@ class FplRepository(context: Context) {
 
     fun getMyEntryId(cookies: String): Int? {
         try {
+            val bearer = if (cookies.startsWith("eyJ") || cookies.contains("eyJhbGci")) cookies else ""
             val urls = listOf(
                 "https://fantasy.premierleague.com/api/me/",
                 "https://fantasy.premierleague.com/api/entry/"
             )
             for (u in urls) {
                 try {
-                    val request = Request.Builder()
+                    val requestBuilder = Request.Builder()
                         .url(u)
-                        .header("Cookie", cookies)
                         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
                         .header("Referer", "https://fantasy.premierleague.com/")
-                        .build()
 
-                    val response = client.newCall(request).execute()
+                    if (bearer.isNotBlank()) {
+                        requestBuilder.header("x-api-authorization", "Bearer $bearer")
+                    } else {
+                        requestBuilder.header("Cookie", cookies)
+                    }
+
+                    val response = client.newCall(requestBuilder.build()).execute()
                     val body = response.body?.string() ?: continue
                     if (!response.isSuccessful) continue
 
@@ -178,13 +183,23 @@ class FplRepository(context: Context) {
     }
 
     fun getMyTeam(teamId: Int, cookies: String): MyTeam {
-        val request = Request.Builder()
+        val bearer = if (cookies.startsWith("eyJ") || cookies.contains("eyJhbGci")) cookies else ""
+        val requestBuilder = Request.Builder()
             .url("https://fantasy.premierleague.com/api/my-team/$teamId/")
-            .header("Cookie", cookies)
-            .header("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
-            .build()
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .header("Referer", "https://fantasy.premierleague.com/")
 
-        val response = client.newCall(request).execute()
+        if (bearer.isNotBlank()) {
+            requestBuilder.header("x-api-authorization", "Bearer $bearer")
+        } else {
+            requestBuilder.header("Cookie", cookies)
+            val csrfToken = cookies.split(";").map { it.trim() }.find { it.startsWith("csrftoken=") }?.substringAfter("=")
+            if (csrfToken != null) {
+                requestBuilder.header("X-CSRFToken", csrfToken)
+            }
+        }
+
+        val response = client.newCall(requestBuilder.build()).execute()
         val body = response.body?.string() ?: throw RuntimeException("Empty response from my-team")
         if (!response.isSuccessful) {
             throw RuntimeException("Failed to fetch my-team: HTTP ${response.code} - $body")
