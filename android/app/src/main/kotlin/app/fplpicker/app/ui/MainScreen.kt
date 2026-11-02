@@ -180,6 +180,7 @@ fun MainScreen(viewModel: MainViewModel) {
                             modifier = Modifier.weight(1f)
                         )
 
+                        var showLoginDialog by remember { mutableStateOf(false) }
                         val isLogged = cookies.isNotBlank()
                         Button(
                             onClick = { showLoginDialog = true },
