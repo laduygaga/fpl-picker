@@ -37,18 +37,21 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                     super.onPageFinished(view, url)
                                     val cookieManager = CookieManager.getInstance()
                                     val cookies = cookieManager.getCookie("https://fantasy.premierleague.com") ?: ""
-                                    if (cookies.contains("pl_profile") || cookies.contains("sessionid")) {
-                                        viewModel.updateCookies(cookies)
-                                        statusText = "✅ Login cookies captured successfully! Checking Team ID..."
+                                    val allCookies = cookieManager.getCookie(url) ?: ""
+                                    val combinedCookies = if (cookies.isNotBlank()) "$cookies; $allCookies" else allCookies
+                                    
+                                    if (combinedCookies.contains("pl_profile") || combinedCookies.contains("sessionid") || combinedCookies.contains("csrftoken")) {
+                                        viewModel.updateCookies(combinedCookies)
+                                        statusText = "✅ Login cookies captured! Checking Team ID..."
                                         viewModel.autoDetectTeamId { success ->
                                             if (success) {
-                                                statusText = "🎉 Team ID auto-detected! You can close this window."
+                                                statusText = "🎉 Team ID auto-detected successfully!"
                                             }
                                         }
                                     }
                                 }
                             }
-                            loadUrl("https://fantasy.premierleague.com/")
+                            loadUrl("https://fantasy.premierleague.com/api/me/")
                         }
                     },
                     modifier = Modifier.fillMaxWidth().weight(1f)
