@@ -216,12 +216,17 @@ fun MainScreen(viewModel: MainViewModel) {
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Starting XI & Bench", color = if (selectedTab == 0) FplGreen else FplSubtext, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    text = { Text("Starting XI", color = if (selectedTab == 0) FplGreen else FplSubtext, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Transfers", color = if (selectedTab == 1) FplGreen else FplSubtext, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    text = { Text("My Team", color = if (selectedTab == 1) FplGreen else FplSubtext, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = { Text("Transfers", color = if (selectedTab == 2) FplGreen else FplSubtext, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
                 )
             }
 
@@ -260,6 +265,8 @@ fun MainScreen(viewModel: MainViewModel) {
 
                         if (selectedTab == 0) {
                             SquadResultContent(state.result)
+                        } else if (selectedTab == 1) {
+                            MyTeamContent(state.myTeam, state.result)
                         } else {
                             TransfersContent(state.transfers, onApply = { viewModel.applyChanges() })
                         }
@@ -447,6 +454,67 @@ fun PlayerRow(sp: ScoredPlayer, isC: Boolean, isVc: Boolean) {
             Column(horizontalAlignment = Alignment.End) {
                 Text(String.format("%.3f", sp.score), color = FplGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Text(sp.oppDesc, color = FplSubtext, fontSize = 9.sp, maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+fun MyTeamContent(myTeam: app.fplpicker.core.api.MyTeam?, res: SquadResult) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(bottom = 20.dp)
+    ) {
+        if (myTeam == null || myTeam.picks.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                    Text("No live team fetched. Please log in with FPL or ensure your Team ID is valid.", color = FplSubtext, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        } else {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = FplCardBg),
+                    shape = MaterialTheme.shapes.medium,
+                    border = BorderStroke(1.dp, FplBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("LIVE FPL SQUAD", color = FplGreen, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Bank: £${String.format("%.1f", myTeam.transfers.bank / 10.0)}M | Value: £${String.format("%.1f", myTeam.transfers.value / 10.0)}M", color = FplText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("Free Transfers: ${myTeam.transfers.limit ?: 1} (Made: ${myTeam.transfers.made})", color = FplSubtext, fontSize = 11.sp)
+                    }
+                }
+            }
+
+            item {
+                Text("CURRENT SQUAD PICKS (${myTeam.picks.size})", color = FplGreen, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 4.dp))
+            }
+
+            items(myTeam.picks) { pick ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = FplCardBg),
+                    shape = MaterialTheme.shapes.small,
+                    border = BorderStroke(1.dp, FplBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Player ID: ${pick.element} (Multiplier: ${pick.multiplier})", color = FplText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            val roleStr = if (pick.is_captain) "Captain (©)" else if (pick.is_vice_captain) "Vice-Captain (V)" else if (pick.multiplier > 0) "Starting XI" else "Bench"
+                            Text("Role: $roleStr", color = FplSubtext, fontSize = 11.sp)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Buy: £${String.format("%.1f", (pick.purchase_price ?: 0) / 10.0)}M", color = FplGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Sell: £${String.format("%.1f", ((pick.selling_price ?: pick.purchase_price) ?: 0) / 10.0)}M", color = FplSubtext, fontSize = 10.sp)
+                        }
+                    }
+                }
             }
         }
     }

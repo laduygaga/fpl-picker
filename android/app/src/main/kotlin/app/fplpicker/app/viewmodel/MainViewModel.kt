@@ -41,7 +41,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _formula = MutableStateFlow("1")
     val formula: StateFlow<String> = _formula.asStateFlow()
 
-    private val _teamId = MutableStateFlow("2719554")
+    private val _teamId = MutableStateFlow("")
     val teamId: StateFlow<String> = _teamId.asStateFlow()
 
     private val _cookies = MutableStateFlow("")
@@ -67,10 +67,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         onResult?.invoke(true)
                     }
                 } else {
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(false)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("FplPicker", "AutoDetectTeamId failed: ${e.message}", e)
+                withContext(Dispatchers.Main) {
                     onResult?.invoke(false)
                 }
-            } catch (_: Exception) {
-                onResult?.invoke(false)
             }
         }
     }
