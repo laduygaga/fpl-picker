@@ -1,4 +1,0 @@
-/home/duy/go/src/fpl-picker/android/app/src/main/kotlin/app/fplpicker/app/viewmodel/MainViewModel.kt
-/home/duy/go/src/fpl-picker/android/app/src/main/kotlin/app/fplpicker/MainActivity.kt
-/home/duy/go/src/fpl-picker/android/app/src/main/kotlin/app/fplpicker/app/data/FplRepository.kt
-/home/duy/go/src/fpl-picker/android/app/src/main/kotlin/app/fplpicker/app/ui/MainScreen.kt
