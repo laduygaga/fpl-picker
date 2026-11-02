@@ -98,7 +98,7 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
+                                Button(
                     onClick = {
                         val cookieManager = CookieManager.getInstance()
                         val c1 = cookieManager.getCookie("https://fantasy.premierleague.com") ?: ""
@@ -113,7 +113,7 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                 if (success) {
                                     statusText = "🎉 Team ID auto-detected ($teamId)!"
                                 } else {
-                                    statusText = "⚠️ Session found, but Team ID fetch failed."
+                                    statusText = "⚠️ Session found, but Team ID fetch failed. (Check login/cookies)"
                                 }
                             }
                         } else {
