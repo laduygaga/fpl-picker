@@ -120,6 +120,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var cachedTransfers: List<TransferSuggestion> = emptyList()
     private var cachedNextGw: Int = 1
 
+    private var cachedMyTeam: MyTeam? = null
+
     fun optimizeSquad(fresh: Boolean = false) {
         viewModelScope.launch(Dispatchers.Default) {
             _uiState.value = UiState.Loading
@@ -131,9 +133,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val bootstrap = repository.fetchBootstrap(fresh)
                 val fixtures = repository.fetchFixtures(fresh)
 
-                val myTeam = if (tid != null) {
+                val myTeam = cachedMyTeam ?: if (tid != null) {
                     try { 
-                        repository.getMyTeam(tid, _cookies.value) 
+                        repository.getMyTeam(tid, _cookies.value).also { cachedMyTeam = it }
                     } catch (e: Exception) { 
                         android.util.Log.e("FplPicker", "Failed to fetch myTeam: ${e.message}", e)
                         null 
@@ -159,7 +161,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val scoredById = scoredPlayers.associateBy { it.player.id }
 
                 val transfers = if (myTeam != null) {
-                    planTransfers(myTeam, optimal, 4, idToTeam, scoredById)
+                    planTransfers(myTeam, optimal, 4, idToTeam, scoredById, true)
                 } else emptyList()
                 cachedTransfers = transfers
 
