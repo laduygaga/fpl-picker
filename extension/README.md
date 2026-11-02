@@ -45,7 +45,7 @@ extension/
 
 ---
 
-## How to Build
+## How to Build (Chrome & Firefox)
 
 From the `extension/` directory:
 
@@ -53,21 +53,36 @@ From the `extension/` directory:
 # 1. Install dependencies
 npm install
 
-# 2. Build the extension
+# 2. Build for Chrome (output: dist/)
 npm run build
-```
 
-The build output will be located in `extension/dist/`.
+# 3. Build for Firefox / Firefox Android (output: dist-firefox/)
+npm run build:firefox
+
+# 4. Package into unsigned .zip for Firefox (output: web-ext-artifacts/)
+npm run package:firefox
+
+# 5. Sign extension with Mozilla AMO API (generates installable .xpi for all Firefox/Android versions)
+npx web-ext sign --source-dir dist-firefox --artifacts-dir ./web-ext-artifacts --api-key="YOUR_JWT_ISSUER" --api-secret="YOUR_JWT_SECRET"
+```
 
 ---
 
-## How to Install in Chrome
+## How to Install
 
+### In Google Chrome
 1. Open Google Chrome and navigate to `chrome://extensions/`.
 2. Enable **Developer mode** using the toggle switch in the top-right corner.
-3. Click the **Load unpacked** button in the top-left corner.
-4. Select the `extension/dist` folder located inside `fpl-picker/extension/dist`.
-5. The **FPL Picker AI** extension is now installed and active!
+3. Click the **Load unpacked** button and select `extension/dist`.
+
+### In Firefox Desktop
+1. Navigate to `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on...** and select `extension/dist-firefox/manifest.json`.
+
+### In Firefox Android (Standard, Beta, or Nightly)
+1. Build and sign your extension using `npx web-ext sign ...` to get the signed `.xpi` file in `web-ext-artifacts/`.
+2. Transfer the signed `.xpi` file to your Android phone.
+3. Open the `.xpi` file with **Firefox for Android** to install it directly with zero corrupt or unsigned warnings!
 
 ---
 
