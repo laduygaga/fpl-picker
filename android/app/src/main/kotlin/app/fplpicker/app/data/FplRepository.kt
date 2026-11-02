@@ -134,33 +134,43 @@ class FplRepository(context: Context) {
 
     fun getMyEntryId(cookies: String): Int? {
         try {
-            val request = Request.Builder()
-                .url("https://fantasy.premierleague.com/api/me/")
-                .header("Cookie", cookies)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .header("Referer", "https://fantasy.premierleague.com/")
-                .build()
+            val urls = listOf(
+                "https://fantasy.premierleague.com/api/me/",
+                "https://fantasy.premierleague.com/api/entry/"
+            )
+            for (u in urls) {
+                try {
+                    val request = Request.Builder()
+                        .url(u)
+                        .header("Cookie", cookies)
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                        .header("Referer", "https://fantasy.premierleague.com/")
+                        .build()
 
-            val response = client.newCall(request).execute()
-            val body = response.body?.string() ?: return null
-            if (!response.isSuccessful) return null
+                    val response = client.newCall(request).execute()
+                    val body = response.body?.string() ?: continue
+                    if (!response.isSuccessful) continue
 
-            val root = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject
-            
-            val player = root?.get("player") as? kotlinx.serialization.json.JsonObject
-            val entry1 = player?.get("entry")?.toString()?.toIntOrNull()
-            if (entry1 != null) return entry1
+                    val root = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject
+                    
+                    val player = root?.get("player") as? kotlinx.serialization.json.JsonObject
+                    val entry1 = player?.get("entry")?.toString()?.toIntOrNull()
+                    if (entry1 != null) return entry1
 
-            val entry2 = root?.get("entry")?.toString()?.toIntOrNull()
-            if (entry2 != null) return entry2
+                    val entry2 = root?.get("entry")?.toString()?.toIntOrNull()
+                    if (entry2 != null) return entry2
 
-            val teams = root?.get("teams") as? kotlinx.serialization.json.JsonArray
-            if (teams != null && teams.isNotEmpty()) {
-                val firstTeam = teams[0] as? kotlinx.serialization.json.JsonObject
-                val id = firstTeam?.get("id")?.toString()?.toIntOrNull()
-                if (id != null) return id
+                    val id3 = root?.get("id")?.toString()?.toIntOrNull()
+                    if (id3 != null) return id3
+
+                    val teams = root?.get("teams") as? kotlinx.serialization.json.JsonArray
+                    if (teams != null && teams.isNotEmpty()) {
+                        val firstTeam = teams[0] as? kotlinx.serialization.json.JsonObject
+                        val id = firstTeam?.get("id")?.toString()?.toIntOrNull()
+                        if (id != null) return id
+                    }
+                } catch (_: Exception) {}
             }
-
             return null
         } catch (_: Exception) {
             return null
