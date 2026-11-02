@@ -79,6 +79,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun testAuthAndFetchTeam() {
+        val tid = _teamId.value.toIntOrNull() ?: 2719554
+        val cookieStr = _cookies.value
+        if (cookieStr.isBlank()) {
+            _uiState.value = UiState.Error("Cookies are blank. Please log in first.")
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.value = UiState.Loading
+            try {
+                val team = repository.getMyTeam(tid, cookieStr)
+                val count = team.picks.size
+                val bank = team.transfers.bank
+                withContext(Dispatchers.Main) {
+                    _uiState.value = UiState.Error("✅ Auth Test Success! Fetched team ID $tid. Squad picks count: $count, Bank: £${bank/10.0}M")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    _uiState.value = UiState.Error("❌ Auth Test Failed: ${e.message}")
+                }
+            }
+        }
+    }
+
     private var cachedOptimal: SquadResult? = null
     private var cachedTransfers: List<TransferSuggestion> = emptyList()
     private var cachedNextGw: Int = 1
