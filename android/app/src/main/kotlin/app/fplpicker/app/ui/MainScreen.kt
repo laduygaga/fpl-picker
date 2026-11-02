@@ -196,13 +196,24 @@ fun MainScreen(viewModel: MainViewModel) {
                         }
                     }
 
-                    Button(
-                        onClick = { viewModel.optimizeSquad(false) },
-                        colors = ButtonDefaults.buttonColors(containerColor = FplGreen),
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth().height(42.dp)
-                    ) {
-                        Text("Optimize Squad", color = FplPurple, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { viewModel.optimizeSquad(false) },
+                            colors = ButtonDefaults.buttonColors(containerColor = FplGreen),
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.weight(1f).height(42.dp)
+                        ) {
+                            Text("Optimize Squad", color = FplPurple, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                        }
+
+                        Button(
+                            onClick = { viewModel.fetchMyTeamOnly() },
+                            colors = ButtonDefaults.buttonColors(containerColor = FplCyan),
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.weight(1f).height(42.dp)
+                        ) {
+                            Text("🔄 Fetch My Team", color = FplPurple, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                        }
                     }
                 }
             }
@@ -280,7 +291,7 @@ fun MainScreen(viewModel: MainViewModel) {
                         } else if (selectedTab == 1) {
                             MyTeamContent(state.myTeam, state.result, state.players, state.teams)
                         } else {
-                            TransfersContent(state.transfers, onApply = { viewModel.applyChanges() })
+                            TransfersContent(state.transfers, onApply = {})
                         }
                     }
                 }

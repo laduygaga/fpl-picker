@@ -182,61 +182,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun applyChanges() {
-        val tid = _teamId.value.toIntOrNull()
-        val cookieStr = _cookies.value
-        val opt = cachedOptimal
-
-        if (tid == null || tid <= 0) {
-            _uiState.value = UiState.Error("Please log in or enter a valid FPL Team ID.")
-            return
-        }
-        if (cookieStr.isBlank()) {
-            _uiState.value = UiState.Error("Please log into your FPL account first.")
-            return
-        }
-        if (opt == null) {
-            _uiState.value = UiState.Error("Please run 'Optimize Squad' first.")
-            return
-        }
-
+    fun fetchMyTeamOnly() {
         viewModelScope.launch(Dispatchers.Default) {
+            _uiState.value = UiState.Loading
             try {
-                if (cachedTransfers.isNotEmpty()) {
-                    val transferReq = TransferRequest(
-                        confirmed = true,
-                        entry = tid,
-                        event = cachedNextGw,
-                        transfers = cachedTransfers.map { t ->
-                            TransferSuggestionDto(
-                                element_in = t.inPlayer.player.id,
-                                element_out = t.out.player.id,
-                                purchase_price = t.purchasePrice,
-                                selling_price = t.sellingPrice
-                            )
-                        }
-                    )
-                    repository.postTransfers(transferReq, cookieStr)
+                val tid = _teamId.value.toIntOrNull()
+                if (tid == null || tid <= 0) {
+                    _uiState.value = UiState.Error("Please enter or auto-detect a valid Team ID first.")
+                    return@launch
                 }
+                val bootstrap = repository.fetchBootstrap(false)
+                val fixtures = repository.fetchFixtures(false)
+                val myTeam = repository.getMyTeam(tid, _cookies.value)
 
-                val refreshedTeam = repository.getMyTeam(tid, cookieStr)
-                val bootstrap = repository.fetchBootstrap(true)
-                val scorer = Scorer(bootstrap.teams, repository.fetchFixtures(true), bootstrap.events, bootstrap.elements, _formula.value)
-                val allScored = scorer.scoreAll(bootstrap.elements)
-                val scoredById = allScored.associateBy { it.player.id }
+                val scorer = Scorer(bootstrap.teams, fixtures, bootstrap.events, bootstrap.elements, _formula.value)
+                val scoredPlayers = scorer.scoreAll(bootstrap.elements)
+                val pairings = scorer.getFixturePairings()
+                val optimal = cachedOptimal ?: findBestSquad(scoredPlayers, (_budget.value.toDoubleOrNull() ?: 100.0).times(10).toInt(), pairings)
+                cachedOptimal = optimal
 
-                val current15 = refreshedTeam.picks.mapNotNull { scoredById[it.element] }
-                val postResult = bestXIFromSquad(current15)
-                val lineupUpdate = planLineup(postResult)
+                val idToTeam = bootstrap.elements.associate { it.id to it.team }
+                val scoredById = scoredPlayers.associateBy { it.player.id }
+                val transfers = planTransfers(myTeam, optimal, 4, idToTeam, scoredById)
+                cachedTransfers = transfers
 
-                repository.postLineup(tid, lineupUpdate, cookieStr)
-
-                val currentState = _uiState.value
-                if (currentState is UiState.Success) {
-                    _uiState.value = currentState.copy(message = "✅ Applied successfully to FPL!")
-                }
+                _uiState.value = UiState.Success(
+                    result = optimal,
+                    myTeam = myTeam,
+                    transfers = transfers,
+                    nextGw = scorer.getNextEventId(),
+                    scoredCount = scoredPlayers.size,
+                    players = bootstrap.elements,
+                    teams = bootstrap.teams,
+                    message = "✅ Successfully fetched live team!"
+                )
             } catch (e: Exception) {
-                _uiState.value = UiState.Error("Failed to apply: ${e.message}")
+                _uiState.value = UiState.Error("Failed to fetch live team: ${e.message}")
             }
         }
     }
