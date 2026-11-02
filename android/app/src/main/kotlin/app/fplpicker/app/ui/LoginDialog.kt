@@ -20,6 +20,8 @@ import app.fplpicker.app.viewmodel.MainViewModel
 @Composable
 fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
     var statusText by remember { mutableStateOf("Please log into your FPL account...") }
+    val cookies by viewModel.cookies.collectAsState()
+    val teamId by viewModel.teamId.collectAsState()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -27,6 +29,14 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
         text = {
             Column(modifier = Modifier.fillMaxWidth().height(400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(statusText, color = FplSubtext, fontSize = 12.sp)
+                if (cookies.isNotBlank()) {
+                    Surface(color = FplDarkPurple, shape = MaterialTheme.shapes.small) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text("🔑 Cookies Captured: ${cookies.take(40)}...", color = FplGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("🏟️ Team ID: $teamId", color = FplCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
                 AndroidView(
                     factory = { context ->
                         WebView(context).apply {
@@ -36,16 +46,15 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
                                     val cookieManager = CookieManager.getInstance()
-                                    val cookies = cookieManager.getCookie("https://fantasy.premierleague.com") ?: ""
-                                    val allCookies = cookieManager.getCookie(url) ?: ""
-                                    val combinedCookies = if (cookies.isNotBlank()) "$cookies; $allCookies" else allCookies
-                                    
-                                    if (combinedCookies.contains("pl_profile") || combinedCookies.contains("sessionid") || combinedCookies.contains("csrftoken")) {
-                                        viewModel.updateCookies(combinedCookies)
-                                        statusText = "✅ Login cookies captured! Checking Team ID..."
+                                    val c1 = cookieManager.getCookie("https://fantasy.premierleague.com") ?: ""
+                                    val c2 = cookieManager.getCookie(url) ?: ""
+                                    val combined = if (c1.isNotBlank()) "$c1; $c2" else c2
+                                    if (combined.contains("pl_profile") || combined.contains("sessionid") || combined.contains("csrftoken")) {
+                                        viewModel.updateCookies(combined)
+                                        statusText = "✅ Login cookies captured successfully!"
                                         viewModel.autoDetectTeamId { success ->
                                             if (success) {
-                                                statusText = "🎉 Team ID auto-detected successfully!"
+                                                statusText = "🎉 Team ID auto-detected ($teamId)! You can close this."
                                             }
                                         }
                                     }
@@ -59,11 +68,29 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = FplGreen)
-            ) {
-                Text("Done", color = FplPurple, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        val cookieManager = CookieManager.getInstance()
+                        val c1 = cookieManager.getCookie("https://fantasy.premierleague.com") ?: ""
+                        if (c1.isNotBlank()) {
+                            viewModel.updateCookies(c1)
+                            statusText = "🔄 Refreshed cookies manually!"
+                            viewModel.autoDetectTeamId()
+                        } else {
+                            statusText = "⚠️ No cookies found yet. Please log in first."
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FplCyan)
+                ) {
+                    Text("🔄 Refresh Cookies", color = FplPurple, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = FplGreen)
+                ) {
+                    Text("Done", color = FplPurple, fontWeight = FontWeight.Bold)
+                }
             }
         },
         containerColor = FplCardBg
