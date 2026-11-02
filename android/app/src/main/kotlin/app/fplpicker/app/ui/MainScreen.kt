@@ -180,15 +180,14 @@ fun MainScreen(viewModel: MainViewModel) {
                             modifier = Modifier.weight(1f)
                         )
 
-                        var showLoginDialog by remember { mutableStateOf(false) }
-
+                        val isLogged = cookies.isNotBlank()
                         Button(
                             onClick = { showLoginDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = FplCyan),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (isLogged) FplGreen else FplCyan),
                             shape = MaterialTheme.shapes.small,
                             modifier = Modifier.weight(1.3f).height(50.dp)
                         ) {
-                            Text("🔑 Log in with FPL", color = FplPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(if (isLogged) "✓ Logged In" else "🔑 Log in with FPL", color = FplPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
 
                         if (showLoginDialog) {
