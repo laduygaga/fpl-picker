@@ -47,16 +47,14 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                     super.onPageFinished(view, url)
                                     val cookieManager = CookieManager.getInstance()
                                     val c1 = cookieManager.getCookie("https://fantasy.premierleague.com") ?: ""
-                                    val c2 = cookieManager.getCookie(url) ?: ""
-                                    val combined = if (c1.isNotBlank()) "$c1; $c2" else c2
-                                    if (combined.contains("pl_profile") || combined.contains("sessionid") || combined.contains("csrftoken")) {
+                                    val c2 = cookieManager.getCookie("https://users.premierleague.com") ?: ""
+                                    val c3 = cookieManager.getCookie("https://account.premierleague.com") ?: ""
+                                    val c4 = cookieManager.getCookie(url) ?: ""
+                                    val combined = listOf(c1, c2, c3, c4).filter { it.isNotBlank() }.joinToString("; ")
+                                    
+                                    if (combined.contains("pl_profile") || combined.contains("sessionid") || combined.contains("csrftoken") || combined.contains("idserv")) {
                                         viewModel.updateCookies(combined)
-                                        statusText = "✅ Login cookies captured successfully!"
-                                        viewModel.autoDetectTeamId { success ->
-                                            if (success) {
-                                                statusText = "🎉 Team ID auto-detected ($teamId)! You can close this."
-                                            }
-                                        }
+                                        viewModel.autoDetectTeamId()
                                     }
                                 }
                             }
@@ -73,12 +71,22 @@ fun LoginDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                     onClick = {
                         val cookieManager = CookieManager.getInstance()
                         val c1 = cookieManager.getCookie("https://fantasy.premierleague.com") ?: ""
-                        if (c1.isNotBlank()) {
-                            viewModel.updateCookies(c1)
-                            statusText = "🔄 Refreshed cookies manually!"
-                            viewModel.autoDetectTeamId()
+                        val c2 = cookieManager.getCookie("https://users.premierleague.com") ?: ""
+                        val c3 = cookieManager.getCookie("https://account.premierleague.com") ?: ""
+                        val combined = listOf(c1, c2, c3).filter { it.isNotBlank() }.joinToString("; ")
+                        
+                        if (combined.isNotBlank()) {
+                            viewModel.updateCookies(combined)
+                            statusText = "🔄 Refreshed cookies (${combined.take(30)}...)!"
+                            viewModel.autoDetectTeamId { success ->
+                                if (success) {
+                                    statusText = "🎉 Team ID auto-detected ($teamId)!"
+                                } else {
+                                    statusText = "⚠️ Got cookies but failed to get Team ID. Check login."
+                                }
+                            }
                         } else {
-                            statusText = "⚠️ No cookies found yet. Please log in first."
+                            statusText = "⚠️ No cookies found. Please log in on the page first."
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = FplCyan)
