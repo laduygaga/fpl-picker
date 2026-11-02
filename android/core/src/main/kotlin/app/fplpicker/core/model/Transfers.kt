@@ -75,7 +75,9 @@ fun planTransfers(
             val netCost = inPlayer.player.now_cost - sellingPrice
             if (netCost > bank) continue
 
-            val uplift = inPlayer.score
+            val outSP = scoredById?.get(outCand.pick.element)
+            val outScore = outSP?.score ?: 0.0
+            val uplift = inPlayer.score - outScore
             if (uplift > bestUplift) {
                 bestUplift = uplift
                 bestIdx = i
