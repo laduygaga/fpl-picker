@@ -137,7 +137,8 @@ class FplRepository(context: Context) {
             val request = Request.Builder()
                 .url("https://fantasy.premierleague.com/api/me/")
                 .header("Cookie", cookies)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Referer", "https://fantasy.premierleague.com/")
                 .build()
 
             val response = client.newCall(request).execute()
@@ -145,9 +146,22 @@ class FplRepository(context: Context) {
             if (!response.isSuccessful) return null
 
             val root = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject
+            
             val player = root?.get("player") as? kotlinx.serialization.json.JsonObject
-            val entry = player?.get("entry")?.toString()?.toIntOrNull()
-            return entry
+            val entry1 = player?.get("entry")?.toString()?.toIntOrNull()
+            if (entry1 != null) return entry1
+
+            val entry2 = root?.get("entry")?.toString()?.toIntOrNull()
+            if (entry2 != null) return entry2
+
+            val teams = root?.get("teams") as? kotlinx.serialization.json.JsonArray
+            if (teams != null && teams.isNotEmpty()) {
+                val firstTeam = teams[0] as? kotlinx.serialization.json.JsonObject
+                val id = firstTeam?.get("id")?.toString()?.toIntOrNull()
+                if (id != null) return id
+            }
+
+            return null
         } catch (_: Exception) {
             return null
         }
